@@ -12,12 +12,14 @@ import { verifyWebhookSignature } from "../pay/payos.js";
 import { jobStates, renderMetrics, count } from "../metrics.js";
 import { recordFailure, resetFailures, tokenValid, tooManyFailures, metricsAllowed } from "./auth.js";
 import { renderDashboard } from "./page.js";
+import { handleApi } from "./api.js";
 import { log } from "../log.js";
 
 // The small web server, off unless WEB_PORT is set:
 //   POST /webhook/payos          payOS tells us a payment happened (the answer to "was it paid" still comes from payOS itself)
 //   GET  /dashboard?token=       the owner's dashboard (also /api/stats, /ledger.csv, /bookings.csv)
 //   GET  /metrics                Prometheus numbers (localhost, or METRICS_TOKEN)
+//   /api/*                       the public booking site's JSON API (src/web/api.js, docs/web.md); /api/stats stays the owner's
 //   GET  /healthz                200 when the bot's heartbeat is fresh
 // In multi-server mode every path except /metrics and /healthz carries the server id: /dashboard/<guildId>, /webhook/payos/<guildId>.
 
@@ -90,6 +92,12 @@ export function createWebServer({ client = null, now = () => Date.now() } = {}) 
       });
       gauges.push({ name: "booking_bot_jobs_registered", help: "Background jobs that have run", value: Object.keys(jobStates()).length });
       return send(res, 200, renderMetrics(gauges, now()), "text/plain; version=0.0.4; charset=utf-8");
+    }
+
+    // /api/stats is the owner's token-protected JSON; every other /api path is the public site's API
+    if (parts[0] === "api" && parts[1] !== "stats") {
+      await handleApi({ request, res, url, parts, client, now });
+      return undefined;
     }
 
     const routes = new Set(["webhook", "dashboard", "api", "ledger.csv", "bookings.csv"]);

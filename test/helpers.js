@@ -8,7 +8,7 @@ process.env.PAYOS_CLIENT_ID = "client-id";
 process.env.PAYOS_API_KEY = "api-key";
 process.env.PAYOS_CHECKSUM_KEY = "checksum-key";
 // Tests never read a real .env: everything else the code looks at is blanked
-for (const key of ["OWNER_IDS", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "PAYMENT_PROVIDER", "WEB_PORT", "WEB_PUBLIC_URL", "DASHBOARD_TOKEN", "METRICS_TOKEN", "MULTI_TENANT", "LICENSE_REQUIRED", "ALERT_WEBHOOK_URL", "RETURN_URL", "LOG_LEVEL", "LOG_FORMAT"]) process.env[key] = "";
+for (const key of ["OWNER_IDS", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "PAYMENT_PROVIDER", "DISCORD_CLIENT_SECRET", "SESSION_SECRET", "WEB_SITE_URL", "WEB_DISCORD_INVITE", "WEB_PORT", "WEB_PUBLIC_URL", "DASHBOARD_TOKEN", "METRICS_TOKEN", "MULTI_TENANT", "LICENSE_REQUIRED", "ALERT_WEBHOOK_URL", "RETURN_URL", "LOG_LEVEL", "LOG_FORMAT"]) process.env[key] = "";
 
 const { closeDb, getDb } = await import("../src/db.js");
 const { saveSettings, getSettings } = await import("../src/settings.js");
