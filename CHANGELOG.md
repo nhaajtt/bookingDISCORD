@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+**Revenue**
+- Quiet-hour discounts (`/admin cai-dat`, "Giảm giá giờ vắng"): a percent off, at most 50, in windows like the peak ones.
+- Membership plans (`/thanhvien`): bought from the wallet, a percent off every booking for a number of days; renewing early adds days.
+- Every automatic discount, with any coupon, is taken out of the fee only, so a player's share never changes.
+- Tips after a session (up to 2.000.000 đ, once per booking, from the wallet): the whole amount goes to the player as a `TIP` ledger row, payable at once. The ledger table is rebuilt once on upgrade to allow the new kind.
+- Referral codes (`/gioithieu`): both sides get wallet credit after the newcomer's first session worth enough.
+- Gift cards (`/quatang`) between wallets, and player suggestions (`/goiy`) with the reason for each pick.
+
+**Trust and safety**
+- A Verified badge set by staff (`/staff xac-minh`), an Emergency button in every room that alerts staff and owners and freezes a running session like a complaint, ratings of customers by players (staff only), and a risk level in `/staff xem-khach` with every reason listed.
+
 ## 1.0.0-rc.1 (stage 3: the full feature set)
 
 Feature complete; waiting for a first run against a real server and real payment keys (see the README).
