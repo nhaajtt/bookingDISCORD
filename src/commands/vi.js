@@ -4,6 +4,7 @@ import { formatVnd } from "../domain/pricing.js";
 import { formatLocal } from "../domain/time.js";
 import { getSettings } from "../settings.js";
 import { checkoutTopup } from "../pay/checkout.js";
+import { manualExtras } from "../flows/manualpay.js";
 import { gate } from "../discord/access.js";
 import { now } from "../discord/clock.js";
 import { limited } from "../discord/limits.js";
@@ -56,9 +57,10 @@ async function topup(interaction, [amount]) {
   const pack = packageFor(Number(amount), getSettings());
   try {
     const link = await checkoutTopup(interaction.user.id, pack.amountVnd, bonusFor(pack.amountVnd, pack.bonusPercent), now());
+    const manual = manualExtras(link.orderCode);
     return respond(interaction, {
-      content: `Nạp ${formatVnd(pack.amountVnd)}, nhận ${formatVnd(pack.amountVnd + bonusFor(pack.amountVnd, pack.bonusPercent))} vào ví. Thanh toán xong ví được cộng trong ít phút.`,
-      components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(link.checkoutUrl).setLabel("Thanh toán"))],
+      content: `Nạp ${formatVnd(pack.amountVnd)}, nhận ${formatVnd(pack.amountVnd + bonusFor(pack.amountVnd, pack.bonusPercent))} vào ví. ${manual ? manual.text : "Thanh toán xong ví được cộng trong ít phút."}`,
+      components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(link.checkoutUrl).setLabel(manual ? manual.linkLabel : "Thanh toán"), ...(manual ? [manual.button] : []))],
     });
   } catch (error) {
     log.error("payment.topup_link_failed", { user: interaction.user.id, error });

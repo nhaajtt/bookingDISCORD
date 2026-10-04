@@ -725,3 +725,39 @@ test("the owner's token route and the webhook paths are not shadowed by the API"
   assert.equal((await call("POST", "/webhook/payos", { raw: "{}" })).status, 401);
   assert.equal((await call("GET", "/dashboard?token=owner-token-123")).status, 200);
 });
+
+test("with only bank transfer on, the page gets the account, the amount, the note and a QR, and 'transferred' asks the owner", async () => {
+  const keys = { ...config.payos };
+  const wanted = config.paymentProvider;
+  Object.assign(config.payos, { clientId: null, apiKey: null, checksumKey: null });
+  config.paymentProvider = null;
+  try {
+    assert.equal((await call("GET", "/api/config")).body.payByLink, false, "off until the owner saves an account");
+    setBank("owner", { bank: "MB", accountNo: "0123456789", accountName: "Nguyen Van A" }, NOW);
+    const cfg = (await call("GET", "/api/config")).body;
+    assert.equal(cfg.payByLink, true);
+    assert.equal(cfg.payProvider, "manual");
+    const made = await call("POST", "/api/bookings", { as: "c1", body: order({ payWith: "link" }) });
+    assert.equal(made.status, 201);
+    const manual = made.body.payment.manual;
+    assert.equal(manual.bankName, "MB Bank");
+    assert.equal(manual.accountNo, "0123456789");
+    assert.equal(manual.amountVnd, 100_000);
+    assert.match(manual.note, /^BOOK\d{5}$/);
+    assert.match(manual.qrUrl, /^https:\/\/img\.vietqr\.io\/image\/970422-0123456789-compact2\.png\?/);
+    assert.equal(made.body.booking.status, "AWAITING_PAYMENT", "nothing is paid until the owner confirms");
+
+    const again = await call("POST", `/api/bookings/${made.body.booking.id}/pay-link`, { as: "c1", body: {} });
+    assert.equal(again.body.payment.manual.orderCode, manual.orderCode, "the same order is reused");
+
+    assert.equal((await call("POST", `/api/bookings/${made.body.booking.id}/transferred`, { as: "c1", body: {}, origin: "https://evil.example" })).status, 403);
+    const told = await call("POST", `/api/bookings/${made.body.booking.id}/transferred`, { as: "c1", body: {} });
+    assert.equal(told.status, 200);
+    assert.deepEqual(events.map((e) => e.kind), ["manual_told"]);
+    assert.equal(events[0].order.order_code, manual.orderCode);
+    assert.equal(code(await call("POST", `/api/bookings/${made.body.booking.id}/transferred`, { as: "c2", body: {} })), "NOT_FOUND", "somebody else cannot even see the booking");
+  } finally {
+    Object.assign(config.payos, keys);
+    config.paymentProvider = wanted;
+  }
+});

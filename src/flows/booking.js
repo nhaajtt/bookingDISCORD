@@ -12,6 +12,8 @@ import { formatVnd, parseDurationText } from "../domain/pricing.js";
 import { formatLocal, parseLocalDateTime } from "../domain/time.js";
 import { DomainError } from "../domain/errors.js";
 import { checkoutBooking } from "../pay/checkout.js";
+import { manualExtras } from "./manualpay.js";
+import { pendingOrderFor } from "../pay/orders.js";
 import { createSeries } from "../domain/series.js";
 import { joinButton } from "../commands/hangcho.js";
 import { payFromWallet, walletBalance } from "../domain/wallet.js";
@@ -81,6 +83,8 @@ async function onPicked(interaction) {
 // ---------------------------------------------------------------- creating the booking and the payment link
 
 export function paymentEmbed(booking, player, settings, checkoutUrl) {
+  // A bank transfer shows where to send the money and has its own "I have transferred" button
+  const manual = manualExtras(pendingOrderFor(booking.id)?.order_code);
   return {
     embeds: [
       new EmbedBuilder()
@@ -93,12 +97,14 @@ export function paymentEmbed(booking, player, settings, checkoutUrl) {
           { name: "Thời lượng", value: durationText(booking.duration_min), inline: true },
           { name: "Giá", value: booking.discount_vnd > 0 ? `~~${formatVnd(booking.list_price_vnd)}~~ ${formatVnd(booking.price_vnd)}` : formatVnd(booking.price_vnd), inline: true },
           ...(booking.discount_vnd > 0 ? [{ name: booking.coupon_code ? "Mã giảm giá" : "Ưu đãi", value: `${booking.coupon_code ? `${booking.coupon_code}: ` : ""}giảm ${formatVnd(booking.discount_vnd)}`, inline: true }] : []),
+          ...(manual ? [{ name: "Chuyển khoản", value: manual.text.slice(0, 1000) }] : []),
         )
         .setFooter({ text: `Thanh toán trong ${settings.unpaidExpireMin} phút, sau đó lịch tự huỷ.` }),
     ],
     components: [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(checkoutUrl).setLabel("Thanh toán"),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(checkoutUrl).setLabel(manual ? manual.linkLabel : "Thanh toán"),
+        ...(manual ? [manual.button] : []),
         new ButtonBuilder().setCustomId(`bk:cancel:${booking.id}`).setLabel("Huỷ lịch").setStyle(ButtonStyle.Secondary),
       ),
     ],

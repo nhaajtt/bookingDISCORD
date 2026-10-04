@@ -10,6 +10,9 @@
 - Referral codes (`/gioithieu`): both sides get wallet credit after the newcomer's first session worth enough.
 - Gift cards (`/quatang`) between wallets, and player suggestions (`/goiy`) with the reason for each pick.
 
+**Payments**
+- Bank transfer straight to the owner's account (`/admin nhan-tien`, `/admin cho-xac-nhan`): a VietQR image with the amount and note, an owner confirmation button, late confirmations refunded; also on the web booking page. Used when no gateway has keys.
+
 **Trust and safety**
 - A Verified badge set by staff (`/staff xac-minh`), an Emergency button in every room that alerts staff and owners and freezes a running session like a complaint, ratings of customers by players (staff only), and a risk level in `/staff xem-khach` with every reason listed.
 

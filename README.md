@@ -126,7 +126,8 @@ Buttons: the 18+ gate, apply, approve and reject, book (on every card and search
 
 - **payOS** (`PAYOS_*`): a link per order, polled every 30 seconds. With the web server on, the payOS webhook (`POST /webhook/payos`) makes the bot look the order up at once; the webhook is checked with the channel's checksum key and is only a nudge, the answer to "was it paid" always comes from payOS.
 - **Stripe** (`STRIPE_SECRET_KEY`): Checkout sessions in VND. Refunds are sent back automatically with an idempotency key per ledger row and order, so a retry can never refund twice. Money that arrives late is refunded the same way.
-- `PAYMENT_PROVIDER` picks the gateway for new payments when both are on. Adding another gateway means one entry in `src/pay/gateway.js` (create link, read payment, optionally close and refund).
+- **Bank transfer** (`manual`, needs no keys): the owner saves their receiving account with `/admin nhan-tien`; customers then get a VietQR image with the amount and a short note, transfer, and the owner presses **Đã nhận tiền** in the money log (or in `/admin cho-xac-nhan`) when the money shows in their banking app. Only then does the booking, wallet top-up or extension go through. A confirmation after the booking expired is refunded as a late payment. It is used when no gateway has keys; a gateway with keys takes over by default (`PAYMENT_PROVIDER=manual` forces transfers).
+- `PAYMENT_PROVIDER` picks the gateway for new payments when more than one is on. Adding another gateway means one entry in `src/pay/gateway.js` (create link, read payment, optionally close and refund).
 - Money that cannot be handled automatically (a second payment for a booking already paid, a paid extension the session can no longer take, a link that closed half paid) is reported in the money log and to the alert webhook for a manual refund, never silently kept.
 
 ## Web server (optional)
@@ -171,7 +172,7 @@ Everything a person is sent privately (answers, forms, buttons, private messages
 | `TIMEZONE` | no | Zone availability and bookings are read in (default `Asia/Ho_Chi_Minh`) |
 | `PAYOS_CLIENT_ID`, `PAYOS_API_KEY`, `PAYOS_CHECKSUM_KEY` | for payOS | The owner's payOS channel; all three are needed |
 | `STRIPE_SECRET_KEY` | for Stripe | Stripe secret key |
-| `PAYMENT_PROVIDER` | no | `payos` or `stripe`, for new payments when both are on |
+| `PAYMENT_PROVIDER` | no | `payos`, `stripe` or `manual`, for new payments when more than one is on |
 | `RETURN_URL` | no | Where a customer is sent after paying or cancelling |
 | `OWNER_IDS` | no | Comma separated Discord user IDs that always count as owner (single-server mode; they must be on the server to see `sổ-tiền`) |
 | `WEB_PORT`, `WEB_HOST`, `WEB_PUBLIC_URL` | no | The web server and the address shown in links |

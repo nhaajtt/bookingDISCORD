@@ -16,7 +16,7 @@ export function readConfig(env) {
   const multi = String(env.MULTI_TENANT ?? "").toLowerCase() === "true";
   const missing = ["DISCORD_TOKEN", "CLIENT_ID", ...(multi ? [] : ["GUILD_ID"])].filter((key) => !env[key]);
   const problems = [];
-  if (env.PAYMENT_PROVIDER && !["payos", "stripe"].includes(env.PAYMENT_PROVIDER)) problems.push("PAYMENT_PROVIDER must be payos or stripe");
+  if (env.PAYMENT_PROVIDER && !["payos", "stripe", "manual"].includes(env.PAYMENT_PROVIDER)) problems.push("PAYMENT_PROVIDER must be payos, stripe or manual");
   if (env.WEB_PORT && !(Number.isInteger(Number(env.WEB_PORT)) && Number(env.WEB_PORT) >= 0 && Number(env.WEB_PORT) < 65536)) problems.push("WEB_PORT must be a port number");
   if (env.WEB_SITE_URL && !/^https?:\/\/[^/\s]+$/.test(env.WEB_SITE_URL.replace(/\/+$/, ""))) problems.push("WEB_SITE_URL must be an origin such as https://book.example.com");
   if (env.SESSION_SECRET && env.SESSION_SECRET.length < 32) problems.push("SESSION_SECRET must be at least 32 characters");

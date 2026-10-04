@@ -1,6 +1,7 @@
 import { createPaymentLink, getPayment, payosEnabled, cancelPaymentLink } from "./payos.js";
 import { createCheckout, expireCheckout, getCheckout, refundCheckout, stripeEnabled } from "./stripe.js";
 import { paymentKeys } from "./credentials.js";
+import { createManualLink, manualEnabled, manualPayment } from "./manual.js";
 
 // One interface over the payment gateways, so the booking, wallet and extension flows do not care which one a customer pays with.
 //   enabled()                       true when the gateway has its keys
@@ -29,6 +30,15 @@ export const PROVIDERS = {
     getPayment: (order) => getCheckout(order.external_id),
     closeLink: (order) => expireCheckout(order.external_id),
     refund: (order, amount, key) => refundCheckout(order.external_id, amount, key),
+  },
+  // Bank transfer to the owner's own account; the owner confirms each one (see manual.js). It is the last choice by default.
+  manual: {
+    name: "Chuyển khoản",
+    canRefund: false,
+    enabled: manualEnabled,
+    createLink: (order) => createManualLink(order),
+    getPayment: () => manualPayment(),
+    closeLink: async () => {},
   },
 };
 

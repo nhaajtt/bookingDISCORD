@@ -13,7 +13,9 @@ import { SORTS, searchPlayers } from "../domain/search.js";
 import { DAY, MINUTE } from "../domain/time.js";
 import { listForCustomer, slotIsFree } from "../domain/waitlist.js";
 import { payFromWallet, walletBalance } from "../domain/wallet.js";
-import { anyProviderEnabled } from "../pay/gateway.js";
+import { anyProviderEnabled, defaultProvider } from "../pay/gateway.js";
+import { manualDetails } from "../pay/manual.js";
+import { pendingOrderFor } from "../pay/orders.js";
 import { checkoutBooking } from "../pay/checkout.js";
 import { refreshCard } from "../discord/cards.js";
 import { getGuild } from "../discord/guild.js";
@@ -294,6 +296,7 @@ function siteConfig(request, at) {
     maxDurationMin: settings.maxDurationHours * 60,
     unpaidExpireMin: settings.unpaidExpireMin,
     payByLink: anyProviderEnabled(),
+    payProvider: defaultProvider(),
     discord: { ageGateUrl: gate, inviteUrl: config.web.discordInviteUrl },
     games: [...games.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name, players]) => ({ name, players })),
   };
@@ -380,7 +383,7 @@ async function linkFor(booking, at, settings) {
   if (!anyProviderEnabled()) throw new ApiError(503, "payment_unavailable", "Thanh toán bằng link chưa mở. Bạn có thể thanh toán bằng ví hoặc quay lại sau nhé.");
   try {
     const made = await checkoutBooking(booking, at, null, settings);
-    return made.checkoutUrl;
+    return { checkoutUrl: made.checkoutUrl, manual: made.provider === "manual" ? manualDetails(made.orderCode) : null };
   } catch (error) {
     log.error("web.payment_link_failed", { booking: booking.id, error });
     throw new ApiError(502, "payment_unavailable", "Hệ thống thanh toán đang bận, bạn thử lại sau ít phút nhé.");
@@ -422,7 +425,7 @@ async function createFromWeb(client, user, body, at) {
   }
   if (payWith === "link") {
     try {
-      payment.checkoutUrl = await linkFor(booking, at, settings);
+      Object.assign(payment, await linkFor(booking, at, settings));
     } catch (error) {
       // Nothing was paid and no link exists: give the slot back, as the Discord flow does
       try {
@@ -539,11 +542,20 @@ export async function handleApi({ request, res, url, parts, client = null, now =
     if (is("PUT", /^me\/availability$/)) return reply(res, 200, await setHours(client, user, body, at));
     if (is("POST", /^me\/status$/)) return reply(res, 200, await setStatus(client, user, body, at));
     if (is("POST", /^bookings$/)) return reply(res, 201, await createFromWeb(client, user, body, at));
-    if ((m = is("POST", /^bookings\/(\d{1,12})\/(pay-wallet|pay-link|cancel|rate)$/))) {
+    if ((m = is("POST", /^bookings\/(\d{1,12})\/(pay-wallet|pay-link|transferred|cancel|rate)$/))) {
       const id = bookingIdOf(m[1]);
       const settings = getSettings();
       if (m[2] === "cancel") return reply(res, 200, await cancelFromWeb(client, user, id, at));
       if (m[2] === "rate") return reply(res, 200, await rateFromWeb(client, user, id, body, at));
+      if (m[2] === "transferred") {
+        // The customer says the transfer is done: the owner is asked to check their bank and confirm, nothing is confirmed here
+        bucket("wallet", user.id, at);
+        const booking = ownBooking(id, user.id);
+        const order = pendingOrderFor(id);
+        if (booking.status !== "AWAITING_PAYMENT" || !order || order.provider !== "manual") throw new ApiError(409, "NOT_FOUND", "Không có khoản chuyển khoản nào đang chờ cho lịch này.");
+        await client?.notifyBooking?.({ kind: "manual_told", booking, order });
+        return reply(res, 200, { ok: true });
+      }
       if (m[2] === "pay-wallet") {
         bucket("wallet", user.id, at);
         ownBooking(id, user.id);
@@ -555,7 +567,7 @@ export async function handleApi({ request, res, url, parts, client = null, now =
       const booking = ownBooking(id, user.id);
       if (booking.status !== "AWAITING_PAYMENT") fail("ILLEGAL_TRANSITION", { status: booking.status, action: "thanh toán" });
       if (at >= booking.created_at + settings.unpaidExpireMin * MINUTE) fail("TOO_LATE");
-      return reply(res, 200, { booking: customerBooking(booking, at, settings, config.guildId), payment: { checkoutUrl: await linkFor(booking, at, settings), paid: false } });
+      return reply(res, 200, { booking: customerBooking(booking, at, settings, config.guildId), payment: { ...(await linkFor(booking, at, settings)), paid: false } });
     }
     throw new ApiError(404, "NOT_FOUND", "Không tìm thấy đường dẫn này.");
   } catch (error) {

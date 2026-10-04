@@ -7,6 +7,7 @@ import { alert } from "../alerts.js";
 import { getGuild, mention, postLog, sendDm } from "./guild.js";
 import { durationText } from "./text.js";
 import { audit, moneyLog } from "./moderation.js";
+import { confirmRow, transferEmbed } from "../flows/manualpay.js";
 
 // What the payments job tells the Discord side (client.notifyBooking). Every send is best effort: a closed DM falls back to the log
 // channel with a mention, and nothing here can undo the payment that was already recorded.
@@ -19,6 +20,16 @@ export async function announce(client, event) {
     const amount = formatVnd(event.row.amount_vnd);
     await sendDm(client, event.row.party_user_id, `Đã hoàn ${amount} về thẻ bạn đã dùng thanh toán (lịch #${event.row.booking_id}). Tiền về tài khoản trong vài ngày làm việc tuỳ ngân hàng.`);
     if (guild) await moneyLog(guild, `Hoàn tự động ${amount} cho ${mention(event.row.party_user_id)}, lịch #${event.row.booking_id}.`);
+    return;
+  }
+
+  if (event.kind === "manual_pending") {
+    if (guild) await moneyLog(guild, { embeds: [transferEmbed(order, getSettings())], components: [confirmRow(order)] });
+    return;
+  }
+
+  if (event.kind === "manual_told") {
+    if (guild) await moneyLog(guild, { embeds: [transferEmbed(order, getSettings(), true)], components: [confirmRow(order)] });
     return;
   }
 

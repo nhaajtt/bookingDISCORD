@@ -262,6 +262,9 @@ legend { padding: 0; margin-bottom: 2px; }
 .trow dd { font-weight: 700; text-align: right; }
 .ticket-total { display: flex; justify-content: space-between; align-items: baseline; font-size: 1.1rem; }
 .ticket-total strong { font: 800 1.8rem var(--font-display); }
+.transfer { display: grid; gap: 12px; justify-items: center; padding: 16px; background: var(--surface); border: 2px dashed var(--line); border-radius: var(--radius); }
+.transfer .tlist { width: 100%; }
+.transfer .qr { max-width: 100%; height: auto; border-radius: 12px; background: #fff; }
 .pay { display: grid; gap: 14px; padding: 20px; background: var(--surface); border: 2px solid var(--line); border-radius: var(--radius); }
 .pay.done { background: color-mix(in srgb, var(--c-mint) 24%, var(--surface)); }
 .timer { font: 800 1.1rem var(--font-display); font-variant-numeric: tabular-nums; padding: 2px 10px; background: var(--c-yellow); color: var(--on-accent); border: 2px solid var(--line); border-radius: 8px; }

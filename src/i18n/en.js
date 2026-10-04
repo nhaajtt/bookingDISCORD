@@ -478,4 +478,12 @@ export const CATALOG = [
   ["Đã mua thẻ quà tặng {0}. Mã thẻ: {1}", "Bought a {0} gift card. Card code: {1}"],
   ["Gửi mã này cho bạn bè, họ nhập bằng /quatang nhap. Ví của bạn còn {0}.", "Send this code to a friend, they enter it with /quatang nhap. Your wallet balance: {0}."],
   ["Đã cộng {0} vào ví của bạn. Số dư: {1}.", "Added {0} to your wallet. Balance: {1}."],
+  ["Chuyển khoản", "Bank transfer"],
+  ["Chuyển khoản {0} đến {1}, nội dung: {2}. Giữ nguyên số tiền và nội dung. Chủ server xác nhận khi nhận được tiền.", "Transfer {0} to {1}, note: {2}. Keep the amount and the note exactly. The owner confirms when the money arrives."],
+  ["Xem mã QR", "Show QR code"],
+  ["Tôi đã chuyển khoản", "I have transferred"],
+  ["Đã báo cho chủ server. Khi tiền về tài khoản, bạn sẽ nhận được tin xác nhận.", "The owner has been told. You will get a message when the money arrives."],
+  ["Đơn này đã được xác nhận rồi, bạn không cần làm gì thêm.", "That order is already confirmed, you do not need to do anything else."],
+  ["Không tìm thấy đơn của bạn.", "We could not find your order."],
+  ["Đã nhận thanh toán. Lịch #{0} với {1} lúc {2} đã được xác nhận.", "Payment received. Booking #{0} with {1} at {2} is confirmed."],
 ];

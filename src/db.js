@@ -328,6 +328,7 @@ const COLUMNS = [
   ["players", "verified_at", "INTEGER"],
   ["players", "verified_by", "TEXT"],
   ["orders", "kind", "TEXT NOT NULL DEFAULT 'BOOKING'"],
+  ["orders", "notified_at", "INTEGER"],
   ["orders", "provider", "TEXT NOT NULL DEFAULT 'payos'"],
   ["orders", "external_id", "TEXT"],
   ["orders", "extra_min", "INTEGER NOT NULL DEFAULT 0"],

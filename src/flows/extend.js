@@ -8,6 +8,7 @@ import { payExtensionFromWallet } from "../domain/wallet.js";
 import { DomainError } from "../domain/errors.js";
 import { getSettings } from "../settings.js";
 import { checkoutExtension } from "../pay/checkout.js";
+import { manualExtras } from "./manualpay.js";
 import { gate } from "../discord/access.js";
 import { now } from "../discord/clock.js";
 import { limited } from "../discord/limits.js";
@@ -68,9 +69,10 @@ async function picked(interaction, [id]) {
   }
   try {
     const link = await checkoutExtension(quote.booking, extraMin, quote.priceVnd, quote.feeVnd, t);
+    const manual = manualExtras(link.orderCode);
     return respond(interaction, {
-      content: `Gia hạn thêm ${durationText(extraMin)}: ${formatVnd(quote.priceVnd)}. Thanh toán trong 15 phút, giờ thêm được giữ cho bạn trong lúc đó.`,
-      components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(link.checkoutUrl).setLabel("Thanh toán gia hạn"))],
+      content: `Gia hạn thêm ${durationText(extraMin)}: ${formatVnd(quote.priceVnd)}. Thanh toán trong 15 phút, giờ thêm được giữ cho bạn trong lúc đó.${manual ? ` ${manual.text}` : ""}`,
+      components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(link.checkoutUrl).setLabel(manual ? manual.linkLabel : "Thanh toán gia hạn"), ...(manual ? [manual.button] : []))],
     });
   } catch (error) {
     if (error instanceof DomainError) throw error;

@@ -1,4 +1,4 @@
-import { transaction } from "../db.js";
+import { getDb, transaction } from "../db.js";
 import { PROVIDERS, anyProviderEnabled } from "../pay/gateway.js";
 import { closeOrder, expireStaleOrders, getOrder, pendingOrders, settleOrder } from "../pay/orders.js";
 import { getBooking, pay } from "../domain/bookings.js";
@@ -20,6 +20,7 @@ import { log } from "../log.js";
 //   { kind: "extended", booking, order }      the session was made longer
 //   { kind: "extend_failed", booking, order } the extension was paid but the session could not take it; the owner refunds by hand
 //   { kind: "duplicate", booking, order }     a second payment for a booking that was already paid; the owner refunds it by hand
+//   { kind: "manual_pending", booking, order } a bank transfer order was made; the owner is asked to confirm it when the money arrives
 
 async function notify(client, event, order) {
   try {
@@ -64,6 +65,11 @@ export async function checkPayments(client, now = Date.now(), { only = null } = 
     try {
       const provider = PROVIDERS[order.provider];
       if (!provider?.enabled()) continue;
+      // A bank transfer cannot be seen from here: tell the owner once that one is waiting, and let them confirm it
+      if (order.provider === "manual" && !order.notified_at) {
+        getDb().prepare("UPDATE orders SET notified_at = ? WHERE order_code = ? AND notified_at IS NULL").run(now, order.order_code);
+        await notify(client, { kind: "manual_pending", booking: order.booking_id ? getBooking(order.booking_id) : null, order }, order);
+      }
       const payment = await provider.getPayment(order);
       if (payment.paid) {
         const result = transaction(() => {
@@ -88,6 +94,23 @@ export async function checkPayments(client, now = Date.now(), { only = null } = 
   }
   expireStaleOrders(now);
   return { checked: orders.length, paid, late };
+}
+
+// confirmManualOrder(client, orderCode, now) -> { ok, reason?, late? }
+// The owner says the transfer arrived. The order may be pending or already timed out (the money can come after the booking's window,
+// and then the usual late-payment rule refunds it); anything else is refused. The flip and what it buys are one transaction.
+export async function confirmManualOrder(client, orderCode, now = Date.now()) {
+  const order = getOrder(orderCode);
+  if (!order || order.provider !== "manual") return { ok: false, reason: "Không tìm thấy đơn chuyển khoản này." };
+  if (order.status === "PAID") return { ok: false, reason: "Đơn này đã được xác nhận rồi." };
+  if (!["PENDING", "EXPIRED"].includes(order.status)) return { ok: false, reason: "Đơn này đã đóng, không xác nhận được nữa." };
+  const result = transaction(() => {
+    const flipped = Number(getDb().prepare("UPDATE orders SET status = 'PAID', paid_at = ? WHERE order_code = ? AND status IN ('PENDING','EXPIRED')").run(now, orderCode).changes);
+    return flipped ? fulfil({ ...order, status: "PAID", paid_at: now }, now) : null;
+  });
+  if (!result) return { ok: false, reason: "Đơn này đã được xác nhận rồi." };
+  await notify(client, result.event, order);
+  return { ok: true, late: Boolean(result.late), kind: result.event.kind };
 }
 
 // Looks at one order straight away (used by the webhook): the answer comes from the gateway, never from the webhook body

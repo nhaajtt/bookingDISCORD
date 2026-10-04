@@ -15,9 +15,31 @@ function ticket(b) {
     h("div", { class: "ticket-total" }, h("span", { text: "Tổng cộng" }), h("strong", { text: fmtVnd(b.priceVnd) })));
 }
 
+// Where to send the money, with the QR image, and a button to tell the owner it was done
+function transferPanel(b, t, message) {
+  const row = (label, value, copy) => h("div", { class: "trow" }, h("dt", { text: label }), h("dd", {}, value, copy ? h("button", { class: "btn btn-quiet btn-sm", type: "button", text: "Chép", onclick: async () => { try { await navigator.clipboard.writeText(copy); toast("Đã chép.", "ok"); } catch { toast("Không chép được, bạn tự chọn và chép nhé.", "error"); } } }) : null));
+  const told = h("button", { class: "btn btn-main btn-lg block-btn", type: "button", text: "Tôi đã chuyển khoản", onclick: async () => {
+    told.disabled = true;
+    try {
+      await api(`bookings/${b.id}/transferred`, { method: "POST", body: {} });
+      message.textContent = "";
+      toast("Đã báo cho chủ server. Trang này tự cập nhật khi tiền về.", "ok");
+    } catch (error) {
+      message.textContent = error.message;
+      told.disabled = false;
+    }
+  } });
+  return h("div", { class: "transfer" },
+    /^https:\/\/img\.vietqr\.io\//.test(t.qrUrl) ? h("img", { class: "qr", src: t.qrUrl, alt: "Mã QR chuyển khoản, đã có sẵn số tiền và nội dung", width: "280", height: "280" }) : null,
+    h("dl", { class: "tlist" }, row("Ngân hàng", t.bankName), row("Số tài khoản", t.accountNo, t.accountNo), row("Chủ tài khoản", t.accountName), row("Số tiền", fmtVnd(t.amountVnd), String(t.amountVnd)), row("Nội dung", t.note, t.note)),
+    h("p", { class: "muted", text: "Giữ nguyên số tiền và nội dung chuyển khoản. Chủ server xác nhận khi thấy tiền về, thường trong vài phút." }),
+    told);
+}
+
 function unpaid(b, me) {
   const left = h("span", { class: "timer", role: "timer" });
   const message = h("p", { class: "warn-text", role: "alert" });
+  const slot = h("div");
   const enough = me.wallet.balanceVnd >= b.priceVnd;
   const buttons = [];
   const lock = (on) => buttons.forEach((x) => (x.disabled = on));
@@ -37,13 +59,19 @@ function unpaid(b, me) {
     message.textContent = "";
     try {
       const { payment } = await api(`bookings/${b.id}/pay-link`, { method: "POST", body: {} });
+      if (payment.manual) {
+        clear(slot, transferPanel(b, payment.manual, message));
+        link.disabled = true;
+        wallet.disabled = true;
+        return;
+      }
       if (!/^https:\/\//.test(payment.checkoutUrl)) throw new Error("Link thanh toán không hợp lệ.");
       location.assign(payment.checkoutUrl);
     } catch (error) {
       message.textContent = error.code === "payment_unavailable" ? "Thanh toán bằng link chưa mở. Bạn trả bằng ví hoặc quay lại sau nhé, lịch vẫn được giữ trong thời gian còn lại." : error.message;
       lock(false);
     }
-  } }, cfg.payByLink ? "Chuyển khoản hoặc thẻ" : "Chuyển khoản hoặc thẻ (chưa mở)");
+  } }, cfg.payByLink ? (cfg.payProvider === "manual" ? "Chuyển khoản ngân hàng" : "Chuyển khoản hoặc thẻ") : "Chuyển khoản (chưa mở)");
   const cancel = h("button", { class: "btn btn-quiet", type: "button", text: "Huỷ lịch này", onclick: () => cancelBooking(b) });
   buttons.push(wallet, link, cancel);
 
@@ -62,7 +90,7 @@ function unpaid(b, me) {
     h("h2", { id: "pay-title", text: "Thanh toán để giữ lịch" }),
     h("p", {}, "Lịch được giữ cho bạn thêm ", left, ". Hết giờ mà chưa trả, lịch tự huỷ."),
     h("p", { class: "muted", text: `Số dư ví của bạn: ${fmtVnd(me.wallet.balanceVnd)}` }),
-    h("div", { class: "stack" }, wallet, link), message, h("div", { class: "row end" }, cancel));
+    h("div", { class: "stack" }, wallet, link), slot, message, h("div", { class: "row end" }, cancel));
 }
 
 async function cancelBooking(b) {

@@ -9,6 +9,9 @@ import { enabledProviders, PROVIDERS } from "../pay/gateway.js";
 import { config } from "../config.js";
 import { MEMBERSHIP_EXAMPLE, PACKAGE_EXAMPLE, PEAK_EXAMPLE, formatMemberships, formatPeaks, parseMemberships, parsePackages, parsePeaks } from "../domain/quoting.js";
 import { getSettings, patchSettings } from "../settings.js";
+import { RECEIVER, receivingAccount } from "../pay/manual.js";
+import { bankLine, setBank } from "../domain/bank.js";
+import { confirmRow, pendingTransfers, transferEmbed } from "../flows/manualpay.js";
 import { recentOrders } from "../pay/orders.js";
 import { formatVnd } from "../domain/pricing.js";
 import { formatLocal } from "../domain/time.js";
@@ -162,6 +165,32 @@ async function submitSettings(interaction, [group]) {
   return respond(interaction, { embeds: [new EmbedBuilder().setColor(COLORS.ok).setTitle("Đã lưu cài đặt").setDescription(`${lines.join("\n")}\n\nLịch đã tạo giữ nguyên giá và phí cũ; cài đặt mới áp dụng cho lịch mới.`)] });
 }
 
+async function openReceiving(interaction) {
+  const have = receivingAccount();
+  return interaction.showModal(
+    modal("ad:receive", "Tài khoản nhận tiền", [
+      { id: "bank", label: "Ngân hàng (ví dụ MB, Vietcombank, Techcombank)", max: 40, value: have?.bank_name ?? "" },
+      { id: "accountNo", label: "Số tài khoản", max: 20, value: have?.account_no ?? "" },
+      { id: "accountName", label: "Tên chủ tài khoản (như trên thẻ)", max: 50, value: have?.account_name ?? "" },
+    ]),
+  );
+}
+
+async function submitReceiving(interaction) {
+  const refusal = gate(interaction, "owner");
+  if (refusal) return respond(interaction, refusal);
+  await defer(interaction);
+  const saved = setBank(RECEIVER, { bank: rawField(interaction, "bank"), accountNo: rawField(interaction, "accountNo"), accountName: rawField(interaction, "accountName") }, now());
+  await audit(interaction.guild, `${nameOf(interaction.member ?? interaction.user)} đổi tài khoản nhận tiền.`);
+  return respond(interaction, `Đã lưu tài khoản nhận tiền: ${bankLine(saved)}. Từ giờ khách chọn thanh toán sẽ chuyển khoản vào tài khoản này, bạn bấm Đã nhận tiền khi thấy tiền về.`);
+}
+
+async function choXacNhan(interaction) {
+  const rows = pendingTransfers(now()).slice(0, 5);
+  if (!rows.length) return respond(interaction, "Không có khoản chuyển khoản nào đang chờ xác nhận.");
+  return respond(interaction, { embeds: rows.map((o) => transferEmbed(o)), components: rows.map((o) => confirmRow(o)) });
+}
+
 async function backup(interaction) {
   const file = backupDb(new Date(now()));
   return respond(interaction, file ? `Đã sao lưu: ${file.split(/[\\/]/).pop()}` : "Hôm nay đã có bản sao lưu.");
@@ -259,6 +288,8 @@ export default {
           o.setName("nhom").setDescription("Nhóm cài đặt").setRequired(true).addChoices({ name: "Phí và giới hạn", value: "phi" }, { name: "Thời gian", value: "thoigian" }, { name: "Chính sách huỷ và ghi chú", value: "huy" }, { name: "Giá cao điểm", value: "caodiem" }, { name: "Gói nạp ví", value: "goinap" }, { name: "Giảm giá giờ vắng", value: "giovang" }, { name: "Gói thành viên", value: "thanhvien" }, { name: "Giới thiệu bạn bè", value: "gioithieu" }, { name: "Tiện ích (gia hạn, chờ, lặp, điểm)", value: "tienich" }),
         ),
     )
+    .addSubcommand((s) => s.setName("nhan-tien").setDescription("Đặt tài khoản ngân hàng nhận tiền khách chuyển khoản"))
+    .addSubcommand((s) => s.setName("cho-xac-nhan").setDescription("Các khoản khách chuyển khoản đang chờ bạn xác nhận"))
     .addSubcommand((s) => s.setName("sao-luu").setDescription("Sao lưu cơ sở dữ liệu ngay"))
     .addSubcommand((s) => s.setName("donhang").setDescription("10 đơn thanh toán gần nhất"))
     .addSubcommand((s) => s.setName("giay-phep").setDescription("Xem giấy phép sử dụng của server này"))
@@ -298,7 +329,9 @@ export default {
     const sub = interaction.options.getSubcommand();
     if (sub === "cai-dat") return openSettings(interaction);
     if (sub === "thanh-toan") return openKeys(interaction);
+    if (sub === "nhan-tien") return openReceiving(interaction);
     await defer(interaction);
+    if (sub === "cho-xac-nhan") return choXacNhan(interaction);
     if (sub === "nhat-ky") return nhatKy(interaction);
     if (sub === "dieu-chinh-vi") return dieuChinhVi(interaction);
     if (sub === "bang-dieu-khien") return bangDieuKhien(interaction);
@@ -306,5 +339,5 @@ export default {
     return sub === "sao-luu" ? backup(interaction) : donhang(interaction);
   },
 
-  modals: { "ad:settings": submitSettings, "ad:keys": submitKeys },
+  modals: { "ad:settings": submitSettings, "ad:keys": submitKeys, "ad:receive": submitReceiving },
 };
