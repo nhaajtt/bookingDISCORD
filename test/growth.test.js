@@ -205,3 +205,36 @@ test("an old database with the three-kind ledger is rebuilt in place and keeps i
   db.prepare("INSERT INTO ledger (booking_id, kind, party_user_id, amount_vnd, status, created_at) VALUES (?, 'TIP', 'p1', 5000, 'OWED', ?)").run(done.id, NOW);
   assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'ledger_once'").get(), "the indexes are back");
 });
+
+test("a gift card moves money from one wallet to another once, and never to its buyer", async () => {
+  const { buyGiftCard, redeemGiftCard, unusedGiftCards } = await import("../src/domain/giftcards.js");
+  adjustWallet("c1", 100_000, "test", NOW);
+  assert.equal(code(() => buyGiftCard("c1", 500, NOW)), "INVALID_INPUT");
+  assert.equal(code(() => buyGiftCard("c2", 50_000, NOW)), "WALLET_LOW");
+  const card = buyGiftCard("c1", 60_000, NOW);
+  assert.match(card.code, /^GC-[A-Z2-9]{8}$/);
+  assert.equal(walletBalance("c1"), 40_000);
+  assert.equal(unusedGiftCards("c1").length, 1);
+  assert.equal(code(() => redeemGiftCard("c1", card.code, NOW)), "INVALID_INPUT", "not by the buyer");
+  assert.equal(code(() => redeemGiftCard("c2", "GC-WRONG123", NOW)), "INVALID_INPUT");
+  const done = redeemGiftCard("c2", card.code.toLowerCase().replace("-", " "), NOW);
+  assert.equal(done.balance, 60_000);
+  assert.equal(code(() => redeemGiftCard("c3", card.code, NOW)), "INVALID_INPUT", "single use");
+  assert.equal(unusedGiftCards("c1").length, 0);
+  assert.equal(walletBalance("c1") + walletBalance("c2"), 100_000, "no money was made or lost");
+});
+
+test("recommendations favour the games a customer booked, players they liked, and skip the ones they rated low", async () => {
+  const { recommendFor } = await import("../src/domain/recommend.js");
+  makePlayer("p2", { games: ["LoL"], rateVnd: 80_000 });
+  makePlayer("p3", { games: ["Liên Quân"], rateVnd: 90_000 });
+  const done = completedBooking({ customerId: "c1" });
+  getDb().prepare("UPDATE bookings SET rating = 5 WHERE id = ?").run(done.id);
+  const picks = recommendFor("c1", NOW + DAY);
+  assert.equal(picks[0].userId, "p1", "the player they rated 5 comes first");
+  assert.ok(picks[0].reasons.some((r) => /chấm cao/.test(r)));
+  assert.ok(picks.findIndex((p) => p.userId === "p3") < picks.findIndex((p) => p.userId === "p2"), "same game before another game");
+  assert.ok(!recommendFor("p1", NOW + DAY).some((p) => p.userId === "p1"), "never yourself");
+  getDb().prepare("UPDATE bookings SET rating = 1 WHERE id = ?").run(done.id);
+  assert.ok(!recommendFor("c1", NOW + DAY).some((p) => p.userId === "p1"), "a player rated 1 star is left out");
+});

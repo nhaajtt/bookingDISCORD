@@ -278,6 +278,15 @@ CREATE TABLE IF NOT EXISTS customer_ratings (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS customer_ratings_customer ON customer_ratings (customer_id);
+CREATE TABLE IF NOT EXISTS gift_cards (
+  code TEXT PRIMARY KEY,
+  amount_vnd INTEGER NOT NULL CHECK (amount_vnd > 0),
+  buyer_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  redeemed_by TEXT,
+  redeemed_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS gift_cards_buyer ON gift_cards (buyer_id);
 CREATE TABLE IF NOT EXISTS memberships (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL,

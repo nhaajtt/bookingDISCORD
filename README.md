@@ -71,6 +71,8 @@ A member who has not confirmed 18+ sees only `luật-lệ` and `xác-nhận-18`.
 | `/hangcho` | confirmed adults | slots you wait for and weekly repeats, with buttons to leave or stop |
 | `/vi xem`, `nap`, `doi-diem` | confirmed adults | wallet balance and history, top up with a package, turn loyalty points into credit |
 | `/thanhvien` | confirmed adults | buy a membership plan from the wallet for a percent off every booking while it runs |
+| `/goiy` | confirmed adults | up to five players picked from the games you booked before, how you rated them, their stars and who is free, each with its reason |
+| `/quatang mua`, `nhap`, `cua-toi` | confirmed adults | buy a gift card from your wallet, give the code to a friend, they enter it and the amount lands in their wallet |
 | `/gioithieu ma`, `nhap` | confirmed adults | your referral code, and enter a friend's code before your first booking; both get wallet credit after the newcomer's first session |
 | `/nganhang cap-nhat`, `xem`, `xoa` | confirmed adults | where the owner sends your money (payouts, refunds); the owner sees it with a VietQR code |
 | `/baocao [nguoi]` | confirmed adults | an anonymous report to staff: they see the text and who it is about, never who wrote it |
