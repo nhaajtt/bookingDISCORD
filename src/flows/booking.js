@@ -297,14 +297,9 @@ async function askReview(interaction, [id, count]) {
   return interaction.showModal(modal(`bk:rate:submit:${booking.id}:${n}`, `Đánh giá ${n} sao`, [{ id: "review", label: "Nhận xét (không bắt buộc)", max: 300, paragraph: true, required: false }]));
 }
 
-async function submitReview(interaction, [id, count]) {
-  await defer(interaction);
-  const refusal = gate(interaction, "user") ?? limited(interaction.user.id, "rate");
-  if (refusal) return respond(interaction, refusal);
-  const n = Number(count);
-  const { booking, player } = recordRating(Number(id), interaction.user.id, n, field(interaction, "review", 300), now());
+// The review goes to the feedback channel and the player's card is refreshed. Best effort: the rating itself is already stored.
+export async function publishReview(guild, booking, player, n) {
   const profile = getPlayer(booking.player_id);
-  const guild = await guildOf(interaction);
   const feedback = await channelOf(guild, "feedbackChannelId");
   if (feedback) {
     await send(feedback, {
@@ -319,6 +314,16 @@ async function submitReview(interaction, [id, count]) {
     }).catch((error) => log.error("review.post_failed", { error }));
   }
   await refreshCard(guild, booking.player_id).catch((error) => log.error("card.refresh_failed", { user: booking.player_id, error }));
+}
+
+async function submitReview(interaction, [id, count]) {
+  await defer(interaction);
+  const refusal = gate(interaction, "user") ?? limited(interaction.user.id, "rate");
+  if (refusal) return respond(interaction, refusal);
+  const n = Number(count);
+  const { booking, player } = recordRating(Number(id), interaction.user.id, n, field(interaction, "review", 300), now());
+  const profile = getPlayer(booking.player_id);
+  await publishReview(await guildOf(interaction), booking, player, n);
   await interaction.message?.edit?.({ components: [] }).catch(() => {});
   const again = profile?.status === "ACTIVE" ? [new ActionRowBuilder().addComponents(againButton(booking.id, profile.displayName))] : [];
   return respond(interaction, { content: "Cảm ơn bạn đã đánh giá!", components: again });

@@ -135,6 +135,10 @@ Set `WEB_PORT` to turn it on. Put a reverse proxy with https in front of it befo
 
 `/admin bang-dieu-khien` shows the dashboard address with a token only the owner sees (`tao-lai-ma:true` replaces it). Wrong tokens are rate limited per address.
 
+## Public booking site
+
+The `site/` folder is a static site (deployable to Vercel as it is) where people browse players, pick a slot, pay and manage bookings, and players edit their hours. It talks to a JSON API in the web server (`src/web/api.js`) that reuses the same rules as Discord. Set `DISCORD_CLIENT_SECRET`, `SESSION_SECRET` and `WEB_SITE_URL` to switch it on; everything else, including Tailscale Funnel and Vercel setup, is in [docs/web.md](docs/web.md).
+
 ## Many servers
 
 `MULTI_TENANT=true` makes one bot serve many booking servers. Each server gets its own database file (`data/tenants/<id>.db`), its own settings, backups and payment keys (entered by its owner with `/admin thanh-toan`, stored in that server's database and never in the shared environment), and its own license. `OWNER_IDS` is ignored in this mode: a server's owner is its administrator.
@@ -163,6 +167,7 @@ Everything a person is sent privately (answers, forms, buttons, private messages
 | `RETURN_URL` | no | Where a customer is sent after paying or cancelling |
 | `OWNER_IDS` | no | Comma separated Discord user IDs that always count as owner (single-server mode; they must be on the server to see `sổ-tiền`) |
 | `WEB_PORT`, `WEB_HOST`, `WEB_PUBLIC_URL` | no | The web server and the address shown in links |
+| `DISCORD_CLIENT_SECRET`, `SESSION_SECRET`, `WEB_SITE_URL`, `WEB_DISCORD_INVITE` | for the public site | Discord login, cookie signing key, the site's address, optional server invite (see [docs/web.md](docs/web.md)) |
 | `DASHBOARD_TOKEN`, `METRICS_TOKEN` | no | Fixed dashboard token; token for `/metrics` |
 | `MULTI_TENANT`, `LICENSE_REQUIRED` | no | Many servers in one bot, and whether they need a license |
 | `ALERT_WEBHOOK_URL` | no | Discord webhook that receives failure alerts |
