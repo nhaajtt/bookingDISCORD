@@ -16,6 +16,7 @@ services:
       DATA_DIR: /data
     volumes:
       - ./data:/data
-    # Uncomment with WEB_PORT=8080 in .env to reach the payOS webhook and the dashboard (put a reverse proxy with https in front)
-    # ports:
-    #   - "127.0.0.1:8080:8080"
+    # With WEB_PORT=8080 in .env the web server (public booking API, payOS webhook, dashboard) listens here, on this machine only.
+    # Put https in front of it (Tailscale Funnel or a reverse proxy); see docs/web.md. With WEB_PORT unset nothing listens.
+    ports:
+      - "127.0.0.1:8080:8080"
