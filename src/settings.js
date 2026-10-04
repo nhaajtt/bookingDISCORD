@@ -58,18 +58,37 @@ function tiers(value) {
 
 // Peak-hour surcharges: up to 6 windows, each { days: [0..6], startMin, endMin, percent } on the wall clock of the server's zone.
 // The minutes are multiples of 30 because bookings are priced in half-hour slots.
-function peaks(value) {
+function peaks(value, maxPercent = 100) {
   if (!Array.isArray(value)) return [];
   const rows = [];
   for (const p of value) {
     const days = [...new Set((Array.isArray(p?.days) ? p.days : []).map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort();
     const startMin = whole(p?.startMin, 0, 1410, null);
     const endMin = whole(p?.endMin, 30, 1440, null);
-    const percent = whole(p?.percent, 1, 100, null);
+    const percent = whole(p?.percent, 1, maxPercent, null);
     if (!days.length || startMin === null || endMin === null || percent === null || startMin % 30 || endMin % 30 || endMin <= startMin) continue;
     rows.push({ days, startMin, endMin, percent });
   }
   return rows.slice(0, 6);
+}
+
+// Membership plans: pay priceVnd from the wallet, get discountPercent off every booking for `days` days. The discount is taken out of
+// the owner's fee (like a coupon), so the player's share never changes. Up to 3 plans.
+function memberships(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const rows = [];
+  for (const [i, m] of value.entries()) {
+    const name = text(m?.name, 30);
+    const priceVnd = whole(m?.priceVnd, 10_000, 10_000_000, null);
+    const days = whole(m?.days, 1, 365, null);
+    const discountPercent = whole(m?.discountPercent, 1, 30, null);
+    const planId = /^[a-z0-9]{1,12}$/.test(String(m?.id ?? "")) ? String(m.id) : `m${i + 1}`;
+    if (!name || priceVnd === null || days === null || discountPercent === null || seen.has(planId)) continue;
+    seen.add(planId);
+    rows.push({ id: planId, name, priceVnd: Math.round(priceVnd / 1000) * 1000, days, discountPercent });
+  }
+  return rows.slice(0, 3);
 }
 
 export const DEFAULT_PACKAGES = [
@@ -103,6 +122,7 @@ export function normalizeSettings(raw = {}, fallbackZone = "Asia/Ho_Chi_Minh") {
   const trusted = v.trusted && typeof v.trusted === "object" ? v.trusted : {};
   const avg = Number(trusted.minAverage);
   const loyalty = v.loyalty && typeof v.loyalty === "object" ? v.loyalty : {};
+  const referral = v.referral && typeof v.referral === "object" ? v.referral : {};
   return {
     timezone: isValidTimeZone(v.timezone) ? v.timezone : isValidTimeZone(fallbackZone) ? fallbackZone : "Asia/Ho_Chi_Minh",
     ownerNotes: text(v.ownerNotes, 1000),
@@ -122,6 +142,12 @@ export function normalizeSettings(raw = {}, fallbackZone = "Asia/Ho_Chi_Minh") {
     disputeFlagDays: whole(v.disputeFlagDays, 7, 365, 60),
     cancellation: tiers(v.cancellation ?? DEFAULT_TIERS),
     peaks: peaks(v.peaks),
+    // Quiet-hour discounts: same windows as the peaks, but they take a percent (at most 50) off the list price, out of the fee
+    offpeak: peaks(v.offpeak, 50).slice(0, 4),
+    memberships: memberships(v.memberships),
+    // Referral: when someone brought by a code finishes their first session worth at least minPriceVnd, both get rewardVnd of wallet
+    // credit (0 switches it off). The owner pays for it, it is never taken from a player.
+    referral: { rewardVnd: whole(referral.rewardVnd, 0, 500_000, 10_000), minPriceVnd: whole(referral.minPriceVnd, 0, 10_000_000, 100_000) },
     packages: packages(v.packages),
     // Loyalty: a customer earns one point per earnPerVnd spent on completed sessions (0 switches it off); a point is worth
     // pointValueVnd as wallet credit, redeemable from minRedeem points

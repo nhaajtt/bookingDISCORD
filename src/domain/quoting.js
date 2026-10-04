@@ -4,12 +4,15 @@ import { fail } from "./errors.js";
 import { DURATION_STEP_MIN, roundFee, validateDuration, validateRate } from "./pricing.js";
 import { MINUTE, localParts } from "./time.js";
 import { couponDiscount } from "./coupons.js";
+import { activeMembership } from "./memberships.js";
 
 // The price of one booking, in whole dong:
 //   rate     the player's price for that game (a per-game price if they set one, otherwise their hourly rate)
 //   list     the rate for every half hour, plus the peak-hour surcharge of the half hours that fall inside a peak window
 //   fee      the owner's fee, on the list price
+//   auto     the quiet-hour discount and the member discount, a percent of the list price
 //   coupon   taken out of the fee only (see coupons.js), so the player's share never changes
+// Every discount together can take at most the fee, so the player is always paid what they would have been.
 // With no peak window and no coupon this is exactly rate * duration / 60, as before.
 
 export const gameRates = (playerId) => Object.fromEntries(getDb().prepare("SELECT game, rate_vnd FROM player_games WHERE player_id = ?").all(playerId).map((r) => [r.game.toLowerCase(), r.rate_vnd]));
@@ -17,6 +20,13 @@ export const gameRates = (playerId) => Object.fromEntries(getDb().prepare("SELEC
 // The hourly rate for a game: the per-game price when there is one, the player's base rate otherwise
 export function rateFor(player, game) {
   return gameRates(player.userId)[String(game ?? "").trim().toLowerCase()] ?? player.rateVnd;
+}
+
+// The quiet-hour discount percent for the half hour starting at `ms` (the highest when windows overlap), 0 outside every window
+export function offpeakPercentAt(ms, settings = getSettings()) {
+  if (!settings.offpeak?.length) return 0;
+  const p = localParts(ms, settings.timezone);
+  return settings.offpeak.filter((w) => w.days.includes(p.weekday) && p.minuteOfDay >= w.startMin && p.minuteOfDay < w.endMin).reduce((m, w) => Math.max(m, w.percent), 0);
 }
 
 // The surcharge percent that applies to the half hour starting at `ms` (the highest when windows overlap), 0 outside every window
@@ -42,18 +52,32 @@ export function quoteBooking({ player, game, startAt, durationMin, couponCode = 
   }
   const surchargeVnd = listPriceVnd - baseVnd;
   const listFeeVnd = roundFee(listPriceVnd, settings.feePercent);
-  let discountVnd = 0;
+  // Quiet hours: the percent of each half hour's list price, added up; then the member percent of the whole list price
+  let quietVnd = 0;
+  if (settings.offpeak?.length && Number.isFinite(startAt)) {
+    for (let at = startAt; at < startAt + durationMin * MINUTE; at += DURATION_STEP_MIN * MINUTE) {
+      const slot = Math.floor((rateVnd * (100 + peakPercentAt(at, settings)) + 100) / 200);
+      quietVnd += Math.floor((slot * offpeakPercentAt(at, settings)) / 100);
+    }
+  }
+  const membership = userId ? activeMembership(userId, now) : null;
+  const memberVnd = membership ? Math.floor((listPriceVnd * membership.discountPercent) / 100) : 0;
+  const autoVnd = Math.min(quietVnd + memberVnd, listFeeVnd);
+  let discountVnd = autoVnd;
   let coupon = null;
+  let couponVnd = 0;
   let couponCapped = false;
   if (couponCode) {
     if (!userId) fail("COUPON_INVALID");
-    const found = couponDiscount(couponCode, { userId, listPriceVnd, feeVnd: listFeeVnd, now });
-    ({ discountVnd, coupon } = found);
+    const found = couponDiscount(couponCode, { userId, listPriceVnd, feeVnd: listFeeVnd - autoVnd, now });
+    discountVnd += found.discountVnd;
+    couponVnd = found.discountVnd;
+    coupon = found.coupon;
     couponCapped = found.capped;
   }
   const priceVnd = listPriceVnd - discountVnd;
   const feeVnd = listFeeVnd - discountVnd;
-  return { rateVnd, durationMin, listPriceVnd, surchargeVnd, discountVnd, priceVnd, feeVnd, playerShareVnd: priceVnd - feeVnd, coupon, couponCapped };
+  return { rateVnd, durationMin, listPriceVnd, surchargeVnd, discountVnd, couponDiscountVnd: couponVnd, autoDiscountVnd: autoVnd, quietDiscountVnd: Math.min(quietVnd, autoVnd), memberDiscountVnd: autoVnd - Math.min(quietVnd, autoVnd), membership, priceVnd, feeVnd, playerShareVnd: priceVnd - feeVnd, coupon, couponCapped };
 }
 
 // setGameRates(userId, { "Liên Quân": 120000, ... }, settings?) replaces the player's per-game prices; a game that is not listed uses the base rate
@@ -160,3 +184,21 @@ export function parsePackages(text, parseVnd) {
   if (packages.length > 6) return { error: "Tối đa 6 gói." };
   return { packages };
 }
+
+// "VIP 100000 30 5" per line -> { memberships } or { error }. The last three words are price, days and the discount percent.
+export const MEMBERSHIP_EXAMPLE = "Mỗi dòng một gói: tên, giá, số ngày, phần trăm giảm. Ví dụ:\nVIP 99000 30 5\nSuper 249000 90 8";
+export function parseMemberships(text, parseVnd) {
+  const memberships = [];
+  for (const line of String(text ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean)) {
+    const m = /^(.+?)\s+(\S+)\s+(\d{1,3})\s*(?:ngay|ngày|d)?\s+\+?(\d{1,2})\s*%?$/i.exec(line);
+    const priceVnd = m ? parseVnd(m[2]) : null;
+    if (!m || priceVnd === null || priceVnd < 10_000) return { error: `Dòng "${line.slice(0, 40)}" chưa đúng. ${MEMBERSHIP_EXAMPLE}` };
+    if (Number(m[3]) < 1 || Number(m[3]) > 365) return { error: "Số ngày của gói phải từ 1 đến 365." };
+    if (Number(m[4]) < 1 || Number(m[4]) > 30) return { error: "Phần trăm giảm của gói phải từ 1 đến 30." };
+    memberships.push({ id: `m${memberships.length + 1}`, name: m[1].slice(0, 30), priceVnd, days: Number(m[3]), discountPercent: Number(m[4]) });
+  }
+  if (memberships.length > 3) return { error: "Tối đa 3 gói thành viên." };
+  return { memberships };
+}
+
+export const formatMemberships = (list) => list.map((m) => `${m.name} ${m.priceVnd} ${m.days} ${m.discountPercent}`).join("\n");

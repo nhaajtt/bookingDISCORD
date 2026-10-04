@@ -25,8 +25,9 @@ function bookingRow(bookingId) {
   return booking;
 }
 
+// The rows that settle what the customer paid for the booking. A tip is extra money that comes later and is not part of this sum.
 export function rowsFor(bookingId) {
-  return getDb().prepare("SELECT * FROM ledger WHERE booking_id = ? ORDER BY id").all(bookingId);
+  return getDb().prepare("SELECT * FROM ledger WHERE booking_id = ? AND kind != 'TIP' ORDER BY id").all(bookingId);
 }
 
 function desiredRows(booking, plan, now, note) {
@@ -78,7 +79,7 @@ export function settleBooking(bookingId, refundVnd, now = Date.now(), { replace 
         db.prepare("UPDATE wallet_tx SET kind = 'ADJUST', note = ? WHERE kind = 'REFUND' AND booking_id = ?").run(`hoàn lịch #${bookingId} đã đảo lại`, bookingId);
         db.prepare("INSERT INTO wallet_tx (user_id, amount_vnd, kind, note, created_at) VALUES (?, ?, 'ADJUST', ?, ?)").run(booking.customer_id, -walletRefund.amount_vnd, `đảo hoàn lịch #${bookingId}`, now);
       }
-      getDb().prepare("DELETE FROM ledger WHERE booking_id = ?").run(bookingId);
+      getDb().prepare("DELETE FROM ledger WHERE booking_id = ? AND kind != 'TIP'").run(bookingId);
     }
     insert(bookingId, wanted);
     getDb().prepare("UPDATE bookings SET refund_due_vnd = ? WHERE id = ?").run(plan.refundVnd, bookingId);
@@ -118,7 +119,8 @@ export function getLedgerRow(ledgerId) {
 export function owedTo(userId) {
   const rows = getDb().prepare(`${joined} WHERE l.party_user_id = ? AND l.status = 'OWED' ORDER BY l.id`).all(userId);
   const sum = (kind) => rows.filter((r) => r.kind === kind).reduce((n, r) => n + r.amount_vnd, 0);
-  return { userId, payoutVnd: sum("PLAYER_PAYOUT"), refundVnd: sum("REFUND"), totalVnd: sum("PLAYER_PAYOUT") + sum("REFUND"), rows };
+  const payoutVnd = sum("PLAYER_PAYOUT") + sum("TIP");
+  return { userId, payoutVnd, refundVnd: sum("REFUND"), totalVnd: payoutVnd + sum("REFUND"), rows };
 }
 
 // Refunds the owner still has to send to customers, oldest first. Refunds are never held back.
@@ -129,9 +131,9 @@ export function pendingRefunds() {
 // Payouts the owner may send now: OWED, no open dispute, and the hold has passed. { includeHeld: true } also returns the held ones, each with releaseAt.
 export function pendingPayouts(now = Date.now(), { includeHeld = false, settings = getSettings() } = {}) {
   return getDb()
-    .prepare(`${joined} WHERE l.kind = 'PLAYER_PAYOUT' AND l.status = 'OWED' ORDER BY l.id`)
+    .prepare(`${joined} WHERE l.kind IN ('PLAYER_PAYOUT','TIP') AND l.status = 'OWED' ORDER BY l.id`)
     .all()
-    .map((r) => ({ ...r, releaseAt: payoutReleaseAt(r, settings) }))
+    .map((r) => ({ ...r, releaseAt: r.kind === "TIP" ? 0 : payoutReleaseAt(r, settings) }))
     .filter((r) => !r.disputed && (includeHeld || r.releaseAt <= now));
 }
 
@@ -161,6 +163,8 @@ export function summary() {
     payoutsPaid: { count: get("PLAYER_PAYOUT", "PAID").n, vnd: get("PLAYER_PAYOUT", "PAID").total },
     refundsOwed: { count: get("REFUND", "OWED").n, vnd: get("REFUND", "OWED").total },
     refundsPaid: { count: get("REFUND", "PAID").n, vnd: get("REFUND", "PAID").total },
+    tipsOwed: { count: get("TIP", "OWED").n, vnd: get("TIP", "OWED").total },
+    tipsPaid: { count: get("TIP", "PAID").n, vnd: get("TIP", "PAID").total },
     feeIncome: { count: get("FEE_INCOME", "PAID").n, vnd: get("FEE_INCOME", "PAID").total },
   };
 }

@@ -25,6 +25,21 @@ export const runInTenant = (guildId, fn) => {
 };
 export const openTenants = () => [...states.keys()];
 
+const LEDGER_TABLE = `
+CREATE TABLE IF NOT EXISTS ledger (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id INTEGER NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('PLAYER_PAYOUT','REFUND','FEE_INCOME','TIP')),
+  party_user_id TEXT,
+  amount_vnd INTEGER NOT NULL CHECK (amount_vnd >= 0),
+  status TEXT NOT NULL CHECK (status IN ('OWED','PAID')),
+  created_at INTEGER NOT NULL,
+  paid_at INTEGER,
+  paid_by TEXT,
+  note TEXT
+);
+`;
+
 const schema = `
 CREATE TABLE IF NOT EXISTS settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -81,18 +96,7 @@ CREATE TABLE IF NOT EXISTS bookings (
 CREATE INDEX IF NOT EXISTS bookings_player ON bookings (player_id, start_at);
 CREATE INDEX IF NOT EXISTS bookings_customer ON bookings (customer_id, start_at);
 CREATE INDEX IF NOT EXISTS bookings_status ON bookings (status);
-CREATE TABLE IF NOT EXISTS ledger (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  booking_id INTEGER NOT NULL,
-  kind TEXT NOT NULL CHECK (kind IN ('PLAYER_PAYOUT','REFUND','FEE_INCOME')),
-  party_user_id TEXT,
-  amount_vnd INTEGER NOT NULL CHECK (amount_vnd >= 0),
-  status TEXT NOT NULL CHECK (status IN ('OWED','PAID')),
-  created_at INTEGER NOT NULL,
-  paid_at INTEGER,
-  paid_by TEXT,
-  note TEXT
-);
+${LEDGER_TABLE}
 CREATE UNIQUE INDEX IF NOT EXISTS ledger_once ON ledger (booking_id, kind);
 CREATE INDEX IF NOT EXISTS ledger_status ON ledger (status, kind);
 CREATE INDEX IF NOT EXISTS ledger_party ON ledger (party_user_id, status);
@@ -256,6 +260,31 @@ CREATE TABLE IF NOT EXISTS loyalty (
   user_id TEXT PRIMARY KEY,
   redeemed_points INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS memberships (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  plan_id TEXT NOT NULL,
+  plan_name TEXT NOT NULL,
+  discount_percent INTEGER NOT NULL CHECK (discount_percent BETWEEN 1 AND 100),
+  price_vnd INTEGER NOT NULL CHECK (price_vnd >= 0),
+  started_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS memberships_user ON memberships (user_id, expires_at);
+CREATE TABLE IF NOT EXISTS referral_codes (
+  user_id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS referrals (
+  referee_id TEXT PRIMARY KEY,
+  referrer_id TEXT NOT NULL,
+  code TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  rewarded_at INTEGER,
+  booking_id INTEGER
+);
+CREATE INDEX IF NOT EXISTS referrals_referrer ON referrals (referrer_id);
 `;
 
 // Columns added after the first release. Each is added once, so an old database file is upgraded in place when it is opened.
@@ -277,6 +306,30 @@ const COLUMNS = [
   ["orders", "bonus_vnd", "INTEGER NOT NULL DEFAULT 0"],
   ["series", "next_at", "INTEGER NOT NULL DEFAULT 0"],
 ];
+
+// The ledger gained the TIP kind after the first release. SQLite cannot change a CHECK in place, so an old table is rebuilt once
+// (rows, ids and indexes kept) the first time it is opened.
+function ensureLedgerKinds(handle) {
+  const row = handle.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'ledger'").get();
+  if (!row || row.sql.includes("'TIP'")) return;
+  handle.exec("BEGIN IMMEDIATE");
+  try {
+    handle.exec("ALTER TABLE ledger RENAME TO ledger_old");
+    handle.exec("DROP INDEX IF EXISTS ledger_once; DROP INDEX IF EXISTS ledger_status; DROP INDEX IF EXISTS ledger_party");
+    handle.exec(LEDGER_TABLE);
+    handle.exec("INSERT INTO ledger SELECT * FROM ledger_old");
+    handle.exec("DROP TABLE ledger_old");
+    handle.exec("COMMIT");
+  } catch (error) {
+    handle.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+export const upgradeLedgerForTest = (handle) => {
+  ensureLedgerKinds(handle);
+  handle.exec(schema);
+};
 
 function ensureColumns(handle) {
   for (const [table, column, ddl] of COLUMNS) {
@@ -308,6 +361,7 @@ function state() {
   if (!s) {
     const handle = new DatabaseSync(fileFor(key));
     handle.exec("PRAGMA journal_mode = WAL;");
+    ensureLedgerKinds(handle);
     handle.exec(schema);
     ensureColumns(handle);
     s = { db: handle, depth: 0 };

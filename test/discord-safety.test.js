@@ -83,7 +83,7 @@ test("the command definitions: hidden where they should be, never in DMs, no rol
   const json = modules.map((m) => m.data.toJSON());
   const names = json.map((c) => c.name);
   assert.equal(new Set(names).size, names.length);
-  assert.deepEqual([...names].sort(), ["admin", "bangxephang", "baocao", "chuyentien", "datlich", "hangcho", "kichhoat", "lichcuatoi", "lichranh", "magiamgia", "nganhang", "ngonngu", "player", "setup", "staff", "thunhap", "timplayer", "vi"]);
+  assert.deepEqual([...names].sort(), ["admin", "bangxephang", "baocao", "chuyentien", "datlich", "gioithieu", "hangcho", "kichhoat", "lichcuatoi", "lichranh", "magiamgia", "nganhang", "ngonngu", "player", "setup", "staff", "thanhvien", "thunhap", "timplayer", "vi"]);
   const optionTypes = (opts = []) => opts.flatMap((o) => [o.type, ...optionTypes(o.options)]);
   for (const c of json) {
     assert.equal(c.dm_permission, false, `${c.name} is not usable in DMs`);

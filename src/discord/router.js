@@ -26,7 +26,7 @@ function match(table, customId) {
 
 // Buttons the bot puts in DMs (reminders, rating prompts) arrive without a guild. Only these customer-facing ones are accepted there;
 // the handlers look the server up themselves and check the person against the booking as always.
-export const DM_PREFIXES = ["bk:rate", "bk:problem", "bk:cancel", "bk:new", "bk:again", "bk:wallet", "bk:paylink", "wt:book", "wt:leave", "sr:book", "sr:skip", "sr:stop"];
+export const DM_PREFIXES = ["bk:rate", "bk:problem", "bk:cancel", "bk:new", "bk:again", "bk:tip", "bk:wallet", "bk:paylink", "wt:book", "wt:leave", "sr:book", "sr:skip", "sr:stop"];
 const allowedInDm = (interaction) => !interaction.guildId && DM_PREFIXES.some((p) => interaction.customId === p || interaction.customId?.startsWith(`${p}:`));
 
 // What the audit trail stores about an interaction: the command with its short options, or the component id (never typed text)

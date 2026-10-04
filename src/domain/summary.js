@@ -59,7 +59,7 @@ export function playerEarnings(userId, now = Date.now(), settings = getSettings(
   const owed = pendingPayouts(now, { includeHeld: true, settings }).filter((r) => r.party_user_id === userId);
   const payable = owed.filter((r) => r.releaseAt <= now);
   const held = owed.filter((r) => r.releaseAt > now);
-  const paid = getDb().prepare("SELECT COALESCE(SUM(amount_vnd), 0) AS vnd, COUNT(*) AS n FROM ledger WHERE kind = 'PLAYER_PAYOUT' AND status = 'PAID' AND party_user_id = ?").get(userId);
+  const paid = getDb().prepare("SELECT COALESCE(SUM(amount_vnd), 0) AS vnd, COUNT(*) AS n FROM ledger WHERE kind IN ('PLAYER_PAYOUT','TIP') AND status = 'PAID' AND party_user_id = ?").get(userId);
   const player = getDb().prepare("SELECT completed, rating_sum, rating_count FROM players WHERE user_id = ?").get(userId);
   const upcoming = listBookings({ playerId: userId, statuses: ["CONFIRMED"], from: now, limit: 500 });
   const owedVnd = total(payable);

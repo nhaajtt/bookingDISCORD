@@ -70,6 +70,8 @@ A member who has not confirmed 18+ sees only `luật-lệ` and `xác-nhận-18`.
 | `/lichcuatoi` | confirmed adults | your bookings, with cancel and book-again buttons |
 | `/hangcho` | confirmed adults | slots you wait for and weekly repeats, with buttons to leave or stop |
 | `/vi xem`, `nap`, `doi-diem` | confirmed adults | wallet balance and history, top up with a package, turn loyalty points into credit |
+| `/thanhvien` | confirmed adults | buy a membership plan from the wallet for a percent off every booking while it runs |
+| `/gioithieu ma`, `nhap` | confirmed adults | your referral code, and enter a friend's code before your first booking; both get wallet credit after the newcomer's first session |
 | `/nganhang cap-nhat`, `xem`, `xoa` | confirmed adults | where the owner sends your money (payouts, refunds); the owner sees it with a VietQR code |
 | `/baocao [nguoi]` | confirmed adults | an anonymous report to staff: they see the text and who it is about, never who wrote it |
 | `/bangxephang [thang]` | confirmed adults | leaderboard of players (hours) and customers (spending), this month or last |
@@ -84,13 +86,16 @@ A member who has not confirmed 18+ sees only `luật-lệ` and `xác-nhận-18`.
 | `/setup` | owners | build or repair the server layout |
 | `/kichhoat` | server administrators | activate a license key (many-server mode only) |
 
-Settings groups in `/admin cai-dat`: fees and limits, times, cancellation policy and notes, peak-hour prices, wallet top-up packages, and extras (extension length, waiting-list hold, weekly repeat length, loyalty points).
+Settings groups in `/admin cai-dat`: fees and limits, times, cancellation policy and notes, peak-hour prices, quiet-hour discounts, membership plans, referral rewards, wallet top-up packages, and extras (extension length, waiting-list hold, weekly repeat length, loyalty points).
 
 Buttons: the 18+ gate, apply, approve and reject, book (on every card and search result), cancel, rate (1 to 5 stars, also in DMs), book again, report a problem, extend a session, pay from the wallet or by link, join the waiting list, confirm or skip a weekly repeat, resolve a dispute, mark a transfer paid. Every handler checks who is clicking, so a forged button does nothing.
 
 ## Booking rules in short
 
 - **Price.** The player's hourly rate for the game (a per-game price if they set one), counted per half hour, plus the **peak-hour surcharge** of the half hours inside a peak window. The fee is a percent of that, rounded to a thousand dong.
+- **Quiet-hour discounts and memberships.** A percent off (at most 50 for quiet hours, 30 for a plan) taken out of the fee like a coupon, so the player is paid what they would have been. Quiet hours are windows like the peak ones; a membership is bought from the wallet for a number of days, and renewing early adds days. All discounts together can take at most the fee.
+- **Tips.** After a session the customer can tip the player from the wallet (5.000 to 2.000.000 đ, once per session, within a week). The player gets all of it; it shows in the owner's payout queue as a tip row with no waiting period.
+- **Referral.** Everyone has a code (`/gioithieu ma`). A newcomer enters it before their first booking; when their first session worth at least the set amount finishes, both get wallet credit paid by the owner.
 - **Discount codes** take at most the fee of the booking, so the player is paid exactly what they would have been. A code is held by an unpaid booking and given back if it expires or is cancelled.
 - **Waiting list.** A taken slot offers "tell me when it opens". When it frees up the first in line is told and the slot is held for them for a while (default 30 minutes), then the next one.
 - **Weekly repeat.** Fill in a number of weeks when booking. The first week is booked; three days before each next week the customer gets a message with one button. Nothing is charged and no slot is held until they press it.

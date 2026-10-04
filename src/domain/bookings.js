@@ -14,6 +14,7 @@ import { addStrike, clearStrikesForBooking, isBlacklisted } from "./strikes.js";
 import { hasAttested } from "./attestations.js";
 import { getPlayer } from "./players.js";
 import { sanitizeText } from "./ratings.js";
+import { rewardReferral } from "./referrals.js";
 
 // Booking lifecycle. Every status change goes through TRANSITIONS, which says from which status, by which kind of actor, and to where.
 // Anything else throws ILLEGAL_TRANSITION. Money is written in the same database transaction as the status change, and the status
@@ -140,7 +141,7 @@ export function createBooking({ customerId, playerId, game, startAt, durationMin
       .run(customerId, playerId, offered, startAt, durationMin, priced.priceVnd, priced.feeVnd, now, priced.listPriceVnd, priced.discountVnd, priced.coupon?.code ?? null, seriesId);
     const bookingId = Number(info.lastInsertRowid);
     completeWaitlist(customerId, playerId, startAt, durationMin, now);
-    if (priced.coupon) redeemCoupon(bookingId, priced.coupon.code, customerId, priced.discountVnd, now);
+    if (priced.coupon) redeemCoupon(bookingId, priced.coupon.code, customerId, priced.couponDiscountVnd, now);
     return mustGet(bookingId);
   });
 }
@@ -234,6 +235,7 @@ export function complete(bookingId, actor = SYSTEM, now = Date.now()) {
     const done = swap(booking, "COMPLETED", { ended_at: Math.min(now, end) });
     settleBooking(bookingId, 0, now);
     getDb().prepare("UPDATE players SET completed = completed + 1 WHERE user_id = ?").run(booking.player_id);
+    rewardReferral(booking, now);
     return done;
   });
 }

@@ -7,7 +7,7 @@ import { licenseStatus } from "../license.js";
 import { savePaymentKeys, paymentKeys } from "../pay/credentials.js";
 import { enabledProviders, PROVIDERS } from "../pay/gateway.js";
 import { config } from "../config.js";
-import { PACKAGE_EXAMPLE, PEAK_EXAMPLE, formatPeaks, parsePackages, parsePeaks } from "../domain/quoting.js";
+import { MEMBERSHIP_EXAMPLE, PACKAGE_EXAMPLE, PEAK_EXAMPLE, formatMemberships, formatPeaks, parseMemberships, parsePackages, parsePeaks } from "../domain/quoting.js";
 import { getSettings, patchSettings } from "../settings.js";
 import { recentOrders } from "../pay/orders.js";
 import { formatVnd } from "../domain/pricing.js";
@@ -43,6 +43,14 @@ const GROUPS = {
       { id: "reviewWindowHours", label: "Thời gian đánh giá và khiếu nại (giờ)", key: "reviewWindowHours" },
     ],
   },
+};
+
+GROUPS.gioithieu = {
+  title: "Giới thiệu bạn bè",
+  fields: [
+    { id: "rewardVnd", label: "Thưởng mỗi bên (VND, 0 = tắt)", key: "referral.rewardVnd" },
+    { id: "minPriceVnd", label: "Buổi đầu tối thiểu để được thưởng (VND)", key: "referral.minPriceVnd" },
+  ],
 };
 
 GROUPS.tienich = {
@@ -86,6 +94,12 @@ async function openSettings(interaction) {
   if (group === "caodiem") {
     return interaction.showModal(modal("ad:settings:caodiem", "Giá cao điểm", [{ id: "peaks", label: "Các khung giờ cao điểm (để trống để tắt)", max: 400, paragraph: true, required: false, placeholder: PEAK_EXAMPLE, value: formatPeaks(settings.peaks) }]));
   }
+  if (group === "giovang") {
+    return interaction.showModal(modal("ad:settings:giovang", "Giảm giá giờ vắng khách", [{ id: "offpeak", label: "Các khung giờ giảm (để trống để tắt)", max: 300, paragraph: true, required: false, placeholder: PEAK_EXAMPLE.replace("tăng", "giảm"), value: formatPeaks(settings.offpeak) }]));
+  }
+  if (group === "thanhvien") {
+    return interaction.showModal(modal("ad:settings:thanhvien", "Gói thành viên", [{ id: "memberships", label: "Các gói (để trống để tắt)", max: 300, paragraph: true, required: false, placeholder: MEMBERSHIP_EXAMPLE, value: formatMemberships(settings.memberships) }]));
+  }
   if (group === "goinap") {
     return interaction.showModal(modal("ad:settings:goinap", "Gói nạp ví", [{ id: "packages", label: "Các gói nạp", max: 200, paragraph: true, placeholder: PACKAGE_EXAMPLE, value: settings.packages.map((p) => `${p.amountVnd} +${p.bonusPercent}`).join("\n") }]));
   }
@@ -107,6 +121,14 @@ async function submitSettings(interaction, [group]) {
     const parsed = parsePeaks(rawField(interaction, "peaks"));
     if (parsed.error) return respond(interaction, parsed.error);
     patch.peaks = parsed.peaks;
+  } else if (group === "giovang") {
+    const parsed = parsePeaks(rawField(interaction, "offpeak"));
+    if (parsed.error) return respond(interaction, parsed.error);
+    patch.offpeak = parsed.peaks;
+  } else if (group === "thanhvien") {
+    const parsed = parseMemberships(rawField(interaction, "memberships"), parseVnd);
+    if (parsed.error) return respond(interaction, parsed.error);
+    patch.memberships = parsed.memberships;
   } else if (group === "goinap") {
     const parsed = parsePackages(rawField(interaction, "packages"), parseVnd);
     if (parsed.error) return respond(interaction, parsed.error);
@@ -130,7 +152,11 @@ async function submitSettings(interaction, [group]) {
       ? [...cancellationLines(saved.cancellation), saved.ownerNotes ? `Ghi chú: ${saved.ownerNotes}` : "Chưa có ghi chú."]
       : group === "caodiem"
         ? saved.peaks.length ? formatPeaks(saved.peaks).split("\n") : ["Không có giá cao điểm."]
-        : group === "goinap"
+        : group === "giovang"
+          ? saved.offpeak.length ? formatPeaks(saved.offpeak).split(/\n/).map((l) => l.replace(" +", " giảm ")) : ["Không có giảm giá giờ vắng."]
+          : group === "thanhvien"
+            ? saved.memberships.length ? saved.memberships.map((m) => `${m.name}: ${formatVnd(m.priceVnd)} / ${m.days} ngày, giảm ${m.discountPercent}%`) : ["Không có gói thành viên."]
+            : group === "goinap"
           ? saved.packages.map((p) => `Nạp ${formatVnd(p.amountVnd)}, tặng thêm ${p.bonusPercent}%`)
           : GROUPS[group].fields.map((f) => `${f.label}: ${readKey(saved, f.key)}`);
   return respond(interaction, { embeds: [new EmbedBuilder().setColor(COLORS.ok).setTitle("Đã lưu cài đặt").setDescription(`${lines.join("\n")}\n\nLịch đã tạo giữ nguyên giá và phí cũ; cài đặt mới áp dụng cho lịch mới.`)] });
@@ -230,7 +256,7 @@ export default {
         .setName("cai-dat")
         .setDescription("Sửa phí, giới hạn, thời gian, chính sách huỷ")
         .addStringOption((o) =>
-          o.setName("nhom").setDescription("Nhóm cài đặt").setRequired(true).addChoices({ name: "Phí và giới hạn", value: "phi" }, { name: "Thời gian", value: "thoigian" }, { name: "Chính sách huỷ và ghi chú", value: "huy" }, { name: "Giá cao điểm", value: "caodiem" }, { name: "Gói nạp ví", value: "goinap" }, { name: "Tiện ích (gia hạn, chờ, lặp, điểm)", value: "tienich" }),
+          o.setName("nhom").setDescription("Nhóm cài đặt").setRequired(true).addChoices({ name: "Phí và giới hạn", value: "phi" }, { name: "Thời gian", value: "thoigian" }, { name: "Chính sách huỷ và ghi chú", value: "huy" }, { name: "Giá cao điểm", value: "caodiem" }, { name: "Gói nạp ví", value: "goinap" }, { name: "Giảm giá giờ vắng", value: "giovang" }, { name: "Gói thành viên", value: "thanhvien" }, { name: "Giới thiệu bạn bè", value: "gioithieu" }, { name: "Tiện ích (gia hạn, chờ, lặp, điểm)", value: "tienich" }),
         ),
     )
     .addSubcommand((s) => s.setName("sao-luu").setDescription("Sao lưu cơ sở dữ liệu ngay"))

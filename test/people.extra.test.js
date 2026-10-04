@@ -128,7 +128,7 @@ test("the rating thank-you offers the same player again, and the button opens th
   const b = finished();
   setClock(() => NOW + 4 * HOUR + MIN);
   const thanks = await env.submit(IDS.cust, `bk:rate:submit:${b.id}:5`, { review: "" });
-  assert.deepEqual(buttonIds(lastPayload(thanks)), [`bk:again:${b.id}`]);
+  assert.deepEqual(buttonIds(lastPayload(thanks)), [10_000, 20_000, 50_000, 100_000].map((a) => `bk:tip:${b.id}:${a}`).concat(`bk:again:${b.id}`));
   const open = await env.click(IDS.cust, `bk:again:${b.id}`);
   const json = modalOf(open).toJSON();
   assert.equal(json.custom_id, `bk:new:${IDS.player}`);

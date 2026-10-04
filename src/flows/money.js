@@ -16,7 +16,7 @@ import { COLORS } from "../discord/text.js";
 // The owner's money queue. The bot never moves money: the owner transfers by hand and presses the button, which records who and when.
 
 const MAX_BUTTONS = 20;
-const kindText = (kind) => (kind === "REFUND" ? "hoàn tiền cho khách" : "trả cho player");
+const kindText = (kind) => (kind === "REFUND" ? "hoàn tiền cho khách" : kind === "TIP" ? "tip cho player" : "trả cho player");
 
 const trim = (text, max = 3800) => (text.length > max ? `${text.slice(0, max)}\n...` : text);
 
@@ -48,6 +48,7 @@ export function buildQueue(t = now(), settings = getSettings()) {
     name: "Sổ cái",
     value: [
       `Trả player: còn nợ ${formatVnd(totals.payoutsOwed.vnd)}, đã trả ${formatVnd(totals.payoutsPaid.vnd)}`,
+      `Tip cho player: còn nợ ${formatVnd(totals.tipsOwed.vnd)}, đã trả ${formatVnd(totals.tipsPaid.vnd)}`,
       `Hoàn khách: còn nợ ${formatVnd(totals.refundsOwed.vnd)}, đã hoàn ${formatVnd(totals.refundsPaid.vnd)}`,
       `Phí giữ lại: ${formatVnd(totals.feeIncome.vnd)}`,
     ].join("\n"),

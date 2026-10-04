@@ -15,6 +15,7 @@ import { checkoutBooking } from "../pay/checkout.js";
 import { createSeries } from "../domain/series.js";
 import { joinButton } from "../commands/hangcho.js";
 import { payFromWallet, walletBalance } from "../domain/wallet.js";
+import { TIP_CHOICES, tipPlayer } from "../domain/tips.js";
 import { gate } from "../discord/access.js";
 import { refreshCard } from "../discord/cards.js";
 import { now } from "../discord/clock.js";
@@ -91,7 +92,7 @@ export function paymentEmbed(booking, player, settings, checkoutUrl) {
           { name: "Thời gian", value: formatLocal(booking.start_at, settings.timezone), inline: true },
           { name: "Thời lượng", value: durationText(booking.duration_min), inline: true },
           { name: "Giá", value: booking.discount_vnd > 0 ? `~~${formatVnd(booking.list_price_vnd)}~~ ${formatVnd(booking.price_vnd)}` : formatVnd(booking.price_vnd), inline: true },
-          ...(booking.discount_vnd > 0 ? [{ name: "Mã giảm giá", value: `${booking.coupon_code}: giảm ${formatVnd(booking.discount_vnd)}`, inline: true }] : []),
+          ...(booking.discount_vnd > 0 ? [{ name: booking.coupon_code ? "Mã giảm giá" : "Ưu đãi", value: `${booking.coupon_code ? `${booking.coupon_code}: ` : ""}giảm ${formatVnd(booking.discount_vnd)}`, inline: true }] : []),
         )
         .setFooter({ text: `Thanh toán trong ${settings.unpaidExpireMin} phút, sau đó lịch tự huỷ.` }),
     ],
@@ -321,7 +322,25 @@ async function submitReview(interaction, [id, count]) {
   await refreshCard(guild, booking.player_id).catch((error) => log.error("card.refresh_failed", { user: booking.player_id, error }));
   await interaction.message?.edit?.({ components: [] }).catch(() => {});
   const again = profile?.status === "ACTIVE" ? [new ActionRowBuilder().addComponents(againButton(booking.id, profile.displayName))] : [];
-  return respond(interaction, { content: "Cảm ơn bạn đã đánh giá!", components: again });
+  return respond(interaction, { content: "Cảm ơn bạn đã đánh giá!\nMuốn cảm ơn player bằng một khoản tip từ ví? Player nhận trọn số tiền, không mất phí.", components: [tipRow(booking.id), ...again] });
+}
+
+// ---------------------------------------------------------------- tipping
+
+const tipRow = (bookingId) => new ActionRowBuilder().addComponents(TIP_CHOICES.map((amount) => new ButtonBuilder().setCustomId(`bk:tip:${bookingId}:${amount}`).setLabel(`Tip ${formatVnd(amount)}`).setStyle(ButtonStyle.Secondary)));
+
+async function onTip(interaction, [id, amount]) {
+  await defer(interaction);
+  const refusal = gate(interaction, "user") ?? limited(interaction.user.id, "wallet");
+  if (refusal) return respond(interaction, refusal);
+  const booking = mustGet(id);
+  if (booking.customer_id !== interaction.user.id) throw new DomainError("FORBIDDEN_ACTOR");
+  const done = tipPlayer(booking.id, interaction.user.id, Number(amount), now());
+  await interaction.message?.edit?.({ components: [] }).catch(() => {});
+  const guild = await guildOf(interaction);
+  await moneyLog(guild, `Tip ${formatVnd(done.tip.amount_vnd)} cho ${mention(booking.player_id)} từ ${mention(interaction.user.id)} (lịch #${booking.id}), chủ server chuyển trọn số tiền cho player.`);
+  await sendDm(interaction.client, booking.player_id, `Bạn vừa nhận tip ${formatVnd(done.tip.amount_vnd)} từ khách của lịch #${booking.id}! Chủ server sẽ chuyển trọn số tiền cho bạn.`);
+  return respond(interaction, { content: `Đã gửi tip ${formatVnd(done.tip.amount_vnd)}. Ví còn ${formatVnd(done.balance)}. Cảm ơn bạn!`, components: [] });
 }
 
 // ---------------------------------------------------------------- booking again
@@ -345,6 +364,7 @@ export default {
     "bk:cancel:yes": confirmCancel,
     "bk:rate": askReview,
     "bk:again": bookAgain,
+    "bk:tip": onTip,
     "bk:wallet": payWithWallet,
     "bk:paylink": payWithLink,
   },

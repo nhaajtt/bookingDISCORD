@@ -297,6 +297,8 @@ test("summary totals by kind and status", () => {
     payoutsPaid: { count: 0, vnd: 0 },
     refundsOwed: { count: 1, vnd: 100_000 },
     refundsPaid: { count: 0, vnd: 0 },
+    tipsOwed: { count: 0, vnd: 0 },
+    tipsPaid: { count: 0, vnd: 0 },
     feeIncome: { count: 1, vnd: 10_000 },
   });
   ledger.markPaid(payout.id, "owner", null, AFTER_WINDOW);
