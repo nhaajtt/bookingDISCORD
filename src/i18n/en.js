@@ -485,5 +485,4 @@ export const CATALOG = [
   ["Đã báo cho chủ server. Khi tiền về tài khoản, bạn sẽ nhận được tin xác nhận.", "The owner has been told. You will get a message when the money arrives."],
   ["Đơn này đã được xác nhận rồi, bạn không cần làm gì thêm.", "That order is already confirmed, you do not need to do anything else."],
   ["Không tìm thấy đơn của bạn.", "We could not find your order."],
-  ["Đã nhận thanh toán. Lịch #{0} với {1} lúc {2} đã được xác nhận.", "Payment received. Booking #{0} with {1} at {2} is confirmed."],
 ];
