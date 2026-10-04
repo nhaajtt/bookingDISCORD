@@ -21,7 +21,7 @@ export function buildCard(player, settings = getSettings()) {
   const trusted = isTrusted(player, settings);
   const state = player.status === "PAUSED" ? "Đang nghỉ" : player.status === "SUSPENDED" ? "Tạm khoá" : slots.length ? null : "Chưa có lịch rảnh";
   const stats = playerStats(player.userId);
-  const badges = [...(trusted ? ["Uy tín"] : []), ...badgesFor(player, stats, now(), settings)];
+  const badges = [...(player.verifiedAt ? ["Đã xác minh"] : []), ...(trusted ? ["Uy tín"] : []), ...badgesFor(player, stats, now(), settings)];
   const rates = gameRates(player.userId);
   const priced = player.games.filter((g) => rates[g.toLowerCase()] !== undefined && rates[g.toLowerCase()] !== player.rateVnd);
   const embed = new EmbedBuilder()

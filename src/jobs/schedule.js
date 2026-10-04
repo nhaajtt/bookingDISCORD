@@ -14,6 +14,7 @@ import { isGone } from "../discord/respond.js";
 import { closeRooms, openRooms, voiceMembers } from "../discord/rooms.js";
 import { fetchMemberState } from "../discord/guild.js";
 import { handlePlayerLeft } from "../discord/departures.js";
+import { customerRatingRows } from "../discord/trustui.js";
 import { log } from "../log.js";
 
 // One tick of the scheduler: asks the domain what is due, runs each action against Discord, and records the ones that leave no trace
@@ -167,6 +168,8 @@ const HANDLERS = {
       }
     }
     if (await sendDm(client, booking.customer_id, payload)) delivered = true;
+    // The player is asked how the customer was, so the next player and staff can see it (best effort, never blocks the customer's prompt)
+    await sendDm(client, booking.player_id, { content: `Khách của buổi hẹn #${booking.id} thế nào? Chỉ nhân viên thấy đánh giá này.`, components: customerRatingRows(booking.id), allowedMentions: { parse: [] } }).catch(() => {});
     if (!delivered && transient) throw new Error("rating prompt could not be delivered");
     markActionDone(booking.id, "askRating", t);
   },

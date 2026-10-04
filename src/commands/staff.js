@@ -6,6 +6,7 @@ import { getPlayer, listPlayers, suspendPlayer } from "../domain/players.js";
 import { addStrike, addToBlacklist, liftSuspension, removeFromBlacklist } from "../domain/strikes.js";
 import { ownerSummary } from "../domain/summary.js";
 import { sanitizeText } from "../domain/ratings.js";
+import { RISK_LEVEL, customerRating, customerRisk, unverifyPlayer, verifyPlayer } from "../domain/trust.js";
 import { formatVnd } from "../domain/pricing.js";
 import { getSettings } from "../settings.js";
 import { gate } from "../discord/access.js";
@@ -116,9 +117,11 @@ async function xoaGhiChu(interaction) {
 // Everything staff need to judge a person at a glance
 export function customerEmbed(userId, t = now(), settings = getSettings()) {
   const p = customerProfile(userId, t, settings);
+  const risk = customerRisk(userId, t, settings);
+  const rating = customerRating(userId);
   const statuses = Object.entries(p.byStatus).map(([s, n]) => `${STATUS_VI[s] ?? s}: ${n}`).join(", ") || "Chưa có lịch";
   const embed = new EmbedBuilder()
-    .setColor(p.blacklisted || p.disputes.flagged ? COLORS.bad : COLORS.info)
+    .setColor(p.blacklisted || p.disputes.flagged || risk.level === "HIGH" ? COLORS.bad : risk.level === "MEDIUM" ? COLORS.warn : COLORS.info)
     .setTitle("Thông tin khách")
     .setDescription(mention(userId))
     .addFields(
@@ -129,6 +132,8 @@ export function customerEmbed(userId, t = now(), settings = getSettings()) {
       { name: `Khiếu nại trong ${p.disputes.days} ngày`, value: `Đã mở ${p.disputes.opened}, bị bác ${p.disputes.rejected}${p.disputes.flagged ? " (cần xem xét)" : ""}`, inline: true },
       { name: "Bị người khác báo cáo", value: String(reportsAbout(userId)), inline: true },
       { name: "Danh sách cấm", value: p.blacklisted ? `Có: ${p.blacklisted.reason}` : "Không", inline: true },
+      { name: "Player chấm khách", value: rating.count ? `${rating.average} sao (${rating.count} lượt)` : "Chưa có", inline: true },
+      { name: `Mức rủi ro: ${RISK_LEVEL[risk.level]} (${risk.points} điểm)`, value: risk.reasons.length ? risk.reasons.join("\n").slice(0, 1000) : "Không có dấu hiệu đáng lo." },
     );
   if (p.notes.length) embed.addFields({ name: "Ghi chú nội bộ", value: p.notes.map((n) => `#${n.id} ${n.note}`).join("\n").slice(0, 1000) });
   return embed;
@@ -139,7 +144,23 @@ async function xemKhach(interaction) {
   return respond(interaction, { embeds: [customerEmbed(target.id)] });
 }
 
-const SUBS = { "ghi-chu": ghiChu, "xoa-ghi-chu": xoaGhiChu, "xem-khach": xemKhach, duyet, "khieu-nai": khieuNai, "huy-lich": huyLich, phat, "mo-khoa": moKhoa, cam, "bo-cam": boCam, "tong-ket": tongKet };
+async function xacMinh(interaction) {
+  const target = interaction.options.getUser("user");
+  verifyPlayer(target.id, interaction.user.id, now());
+  await refreshCard(interaction.guild, target.id).catch(() => {});
+  await audit(interaction.guild, `${nameOf(interaction.member ?? interaction.user)} xác minh player ${mention(target.id)}.`);
+  return respond(interaction, `Đã gắn huy hiệu "Đã xác minh" cho ${mention(target.id)}.`);
+}
+
+async function boXacMinh(interaction) {
+  const target = interaction.options.getUser("user");
+  const changed = unverifyPlayer(target.id);
+  await refreshCard(interaction.guild, target.id).catch(() => {});
+  if (changed) await audit(interaction.guild, `${nameOf(interaction.member ?? interaction.user)} gỡ xác minh của ${mention(target.id)}.`);
+  return respond(interaction, changed ? `Đã gỡ huy hiệu xác minh của ${mention(target.id)}.` : `${mention(target.id)} chưa có huy hiệu xác minh.`);
+}
+
+const SUBS = { "xac-minh": xacMinh, "bo-xac-minh": boXacMinh, "ghi-chu": ghiChu, "xoa-ghi-chu": xoaGhiChu, "xem-khach": xemKhach, duyet, "khieu-nai": khieuNai, "huy-lich": huyLich, phat, "mo-khoa": moKhoa, cam, "bo-cam": boCam, "tong-ket": tongKet };
 
 export default {
   audited: true,
@@ -161,6 +182,8 @@ export default {
     .addSubcommand((s) => s.setName("mo-khoa").setDescription("Mở khoá player bị tạm khoá và xoá cảnh cáo").addUserOption((o) => user(o, "Player")))
     .addSubcommand((s) => s.setName("cam").setDescription("Cấm một người dùng").addUserOption((o) => user(o)).addStringOption(reason))
     .addSubcommand((s) => s.setName("bo-cam").setDescription("Bỏ cấm một người dùng").addUserOption((o) => user(o)))
+    .addSubcommand((s) => s.setName("xac-minh").setDescription("Gắn huy hiệu Đã xác minh cho player (sau khi bạn đã kiểm tra)").addUserOption((o) => user(o, "Player")))
+    .addSubcommand((s) => s.setName("bo-xac-minh").setDescription("Gỡ huy hiệu Đã xác minh của player").addUserOption((o) => user(o, "Player")))
     .addSubcommand((s) => s.setName("tong-ket").setDescription("Tổng kết lịch, doanh thu và việc đang chờ"))
     .addSubcommand((s) => s.setName("xem-khach").setDescription("Xem lịch sử, cảnh cáo, khiếu nại và ghi chú của một người").addUserOption((o) => user(o)))
     .addSubcommand((s) =>

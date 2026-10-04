@@ -86,7 +86,7 @@ test("a whole booking over its day: reminders once each, rooms, start on voice p
   assert.match(welcome.content, new RegExp(`<@${IDS.cust}> và <@${IDS.player}>`));
   assert.match(welcome.content, /T3 06\/10 12:00, kéo dài 1 giờ/);
   assert.deepEqual(welcome.allowedMentions, { parse: [], users: [IDS.cust, IDS.player] });
-  assert.deepEqual(buttonIds({ components: welcome.components }), ["bk:extend:1", "bk:problem:1", "bk:cancel:1"]);
+  assert.deepEqual(buttonIds({ components: welcome.components }), ["bk:extend:1", "bk:problem:1", "sf:alert:1", "bk:cancel:1"]);
 
   // Nobody is in voice yet at the start: nothing happens
   await tick(START + MIN);

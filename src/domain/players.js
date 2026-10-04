@@ -31,6 +31,7 @@ function row(r) {
     photos: JSON.parse(r.photos || "[]"),
     voiceUrl: r.voice_url || "",
     leftAt: r.left_at ?? null,
+    verifiedAt: r.verified_at ?? null,
   };
 }
 

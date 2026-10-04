@@ -260,6 +260,24 @@ CREATE TABLE IF NOT EXISTS loyalty (
   user_id TEXT PRIMARY KEY,
   redeemed_points INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS safety_alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id INTEGER NOT NULL,
+  user_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  handled_at INTEGER,
+  handled_by TEXT
+);
+CREATE INDEX IF NOT EXISTS safety_alerts_open ON safety_alerts (handled_at, created_at);
+CREATE TABLE IF NOT EXISTS customer_ratings (
+  booking_id INTEGER PRIMARY KEY,
+  player_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  stars INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
+  note TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS customer_ratings_customer ON customer_ratings (customer_id);
 CREATE TABLE IF NOT EXISTS memberships (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL,
@@ -298,6 +316,8 @@ const COLUMNS = [
   ["players", "photos", "TEXT NOT NULL DEFAULT '[]'"],
   ["players", "voice_url", "TEXT NOT NULL DEFAULT ''"],
   ["players", "left_at", "INTEGER"],
+  ["players", "verified_at", "INTEGER"],
+  ["players", "verified_by", "TEXT"],
   ["orders", "kind", "TEXT NOT NULL DEFAULT 'BOOKING'"],
   ["orders", "provider", "TEXT NOT NULL DEFAULT 'payos'"],
   ["orders", "external_id", "TEXT"],

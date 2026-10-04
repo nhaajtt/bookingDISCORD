@@ -461,4 +461,11 @@ export const CATALOG = [
   ["Bạn đã tip cho buổi này rồi.", "You have already tipped for this session."],
   ["Ưu đãi", "Offer"],
   ["giảm {0}", "{0} off"],
+  ["Báo khẩn", "Emergency"],
+  ["Đã báo khẩn cho nhân viên và chủ server. Nếu bạn đang gặp nguy hiểm thật sự, hãy rời cuộc gọi và liên hệ cơ quan chức năng.", "Staff and the owner have been alerted. If you are in real danger, leave the call and contact the authorities."],
+  ["Cảm ơn bạn! Đã ghi nhận {0} cho khách. Chỉ nhân viên thấy đánh giá này.", "Thank you! Recorded {0} for the customer. Only staff can see this rating."],
+  ["Khách của buổi hẹn #{0} thế nào? Chỉ nhân viên thấy đánh giá này.", "How was the customer of booking #{0}? Only staff can see this rating."],
+  ["Bạn đã đánh giá khách của buổi này rồi.", "You have already rated the customer of this session."],
+  ["Chỉ đánh giá được khách sau khi buổi chơi đã kết thúc.", "You can only rate the customer after the session has ended."],
+  ["Báo khẩn: {0} cần hỗ trợ trong lịch #{1}. Xem kênh khiếu nại hoặc vào phòng ngay.", "Emergency: {0} needs help in booking #{1}. Check the complaints channel or go to the room now."],
 ];

@@ -5,6 +5,7 @@ import { getSettings } from "../settings.js";
 import { isGone, mentionOnly } from "./respond.js";
 import { durationText } from "./text.js";
 import { mention } from "./guild.js";
+import { alertButton } from "./trustui.js";
 import { log } from "../log.js";
 
 // The private rooms of a booking. Only the two people, the staff role (text read only, voice view only until a dispute) and the bot see them.
@@ -53,6 +54,7 @@ export async function openRooms(guild, booking, now, botId = guild.client?.user?
   const row = new ActionRowBuilder().addComponents(
     ...(settings.maxExtendMin > 0 ? [new ButtonBuilder().setCustomId(`bk:extend:${booking.id}`).setLabel("Gia hạn").setStyle(ButtonStyle.Success)] : []),
     new ButtonBuilder().setCustomId(`bk:problem:${booking.id}`).setLabel("Báo cáo sự cố").setStyle(ButtonStyle.Danger),
+    alertButton(booking.id),
     new ButtonBuilder().setCustomId(`bk:cancel:${booking.id}`).setLabel("Huỷ lịch").setStyle(ButtonStyle.Secondary),
   );
   await text
