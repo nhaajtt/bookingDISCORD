@@ -5,6 +5,7 @@ import { config } from "../src/config.js";
 import { createWebServer } from "../src/web/server.js";
 import { SESSION_COOKIE, STATE_COOKIE, SESSION_TTL_MS, signToken, verifyToken, parseCookies } from "../src/web/session.js";
 import { resetLimits } from "../src/discord/limits.js";
+import { setClock } from "../src/discord/clock.js";
 import { setLogSink } from "../src/log.js";
 import { addToBlacklist } from "../src/domain/strikes.js";
 import { adjustWallet, walletBalance } from "../src/domain/wallet.js";
@@ -34,6 +35,8 @@ beforeEach(async () => {
   resetLimits();
   resetFailures();
   clock = NOW;
+  // The Discord layer the API calls into reads the same fixed clock as the web server, not the real one
+  setClock(() => clock);
   events = [];
   logs = [];
   setLogSink((record) => logs.push(record));
@@ -57,6 +60,7 @@ beforeEach(async () => {
   makeCustomer("c1");
 });
 afterEach(async () => {
+  setClock();
   await web.close();
   globalThis.fetch = realFetch;
   setLogSink(null);
